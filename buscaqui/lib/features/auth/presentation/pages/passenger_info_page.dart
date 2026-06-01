@@ -94,7 +94,7 @@ class _PassengerInfoPageState extends ConsumerState<PassengerInfoPage> {
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              _SectionHeader('Dados do Aluno', Icons.school),
+              const _SectionHeader('Dados do Aluno', Icons.school),
               AppTextField(
                 label: 'Nome do aluno',
                 controller: _alunoNome,
@@ -121,7 +121,7 @@ class _PassengerInfoPageState extends ConsumerState<PassengerInfoPage> {
                 },
               ),
               const SizedBox(height: 8),
-              _SectionHeader('Dados do Responsável', Icons.family_restroom),
+              const _SectionHeader('Dados do Responsável', Icons.family_restroom),
               AppTextField(
                 label: 'Nome do responsável',
                 controller: _respNome,
