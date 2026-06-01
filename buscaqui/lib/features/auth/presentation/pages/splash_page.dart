@@ -52,14 +52,19 @@ class _SplashPageState extends ConsumerState<SplashPage> {
       body: MediaQuery(
         data: mq.copyWith(textScaler: clampedScale),
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: mq.size.height - mq.padding.vertical - 48,
-              ),
-              child: Column(
-                children: [
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+              child: ConstrainedBox(
+                // minHeight = altura disponível menos o padding vertical (48).
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 48,
+                ),
+                // IntrinsicHeight dá altura limitada ao Column, permitindo o
+                // uso de Spacer/flex mesmo dentro de um scroll view.
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
                   const Spacer(flex: 2),
                   _Logo(),
                   const SizedBox(height: 24),
@@ -121,8 +126,10 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                ],
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
