@@ -503,3 +503,110 @@ drop trigger if exists after_alerta_insert_push on public.alertas;
 create trigger after_alerta_insert_push
   after insert on public.alertas
   for each row execute function public.on_alerta_push();
+
+-- ============================================================================
+--  CORREÇÃO DE RECURSÃO DE RLS
+--  As policies de passageiros <-> conexoes se referenciavam mutuamente, gerando
+--  "infinite recursion detected in policy". As funções SECURITY DEFINER abaixo
+--  leem os dados SEM acionar o RLS, quebrando o ciclo. Estas definições
+--  substituem (drop + create) as policies declaradas acima.
+-- ============================================================================
+create or replace function public.auth_owned_conexao_ids()
+returns setof uuid language sql security definer stable set search_path = public as $$
+  select id from public.conexoes where motorista_id = auth.uid();
+$$;
+
+create or replace function public.auth_responsavel_ids()
+returns setof uuid language sql security definer stable set search_path = public as $$
+  select id from public.responsaveis where usuario_id = auth.uid();
+$$;
+
+create or replace function public.auth_self_passageiro_ids()
+returns setof uuid language sql security definer stable set search_path = public as $$
+  select id from public.passageiros
+   where usuario_id = auth.uid()
+      or responsavel_id in (select id from public.responsaveis where usuario_id = auth.uid());
+$$;
+
+create or replace function public.auth_visible_passageiro_ids()
+returns setof uuid language sql security definer stable set search_path = public as $$
+  select id from public.passageiros
+   where usuario_id = auth.uid()
+      or responsavel_id in (select id from public.responsaveis where usuario_id = auth.uid())
+      or conexao_id in (select id from public.conexoes where motorista_id = auth.uid());
+$$;
+
+create or replace function public.auth_owned_passageiro_ids()
+returns setof uuid language sql security definer stable set search_path = public as $$
+  select id from public.passageiros
+   where conexao_id in (select id from public.conexoes where motorista_id = auth.uid());
+$$;
+
+create or replace function public.auth_member_conexao_ids()
+returns setof uuid language sql security definer stable set search_path = public as $$
+  select distinct conexao_id from public.passageiros
+   where conexao_id is not null
+     and (usuario_id = auth.uid()
+          or responsavel_id in (select id from public.responsaveis where usuario_id = auth.uid()));
+$$;
+
+create or replace function public.auth_member_motorista_ids()
+returns setof uuid language sql security definer stable set search_path = public as $$
+  select distinct c.motorista_id from public.conexoes c
+   where c.id in (select public.auth_member_conexao_ids());
+$$;
+
+grant execute on function public.auth_owned_conexao_ids()      to authenticated, anon;
+grant execute on function public.auth_responsavel_ids()        to authenticated, anon;
+grant execute on function public.auth_self_passageiro_ids()    to authenticated, anon;
+grant execute on function public.auth_visible_passageiro_ids() to authenticated, anon;
+grant execute on function public.auth_owned_passageiro_ids()   to authenticated, anon;
+grant execute on function public.auth_member_conexao_ids()     to authenticated, anon;
+grant execute on function public.auth_member_motorista_ids()   to authenticated, anon;
+
+drop policy if exists "conexoes_member_select" on public.conexoes;
+create policy "conexoes_member_select" on public.conexoes
+  for select using (id in (select public.auth_member_conexao_ids()));
+
+drop policy if exists "passageiros_visibility" on public.passageiros;
+create policy "passageiros_visibility" on public.passageiros
+  for select using (
+    usuario_id = auth.uid()
+    or responsavel_id in (select public.auth_responsavel_ids())
+    or conexao_id in (select public.auth_owned_conexao_ids())
+  );
+
+drop policy if exists "passageiros_self_insert" on public.passageiros;
+create policy "passageiros_self_insert" on public.passageiros
+  for insert with check (
+    usuario_id = auth.uid()
+    or responsavel_id in (select public.auth_responsavel_ids())
+  );
+
+drop policy if exists "passageiros_self_update" on public.passageiros;
+create policy "passageiros_self_update" on public.passageiros
+  for update using (
+    usuario_id = auth.uid()
+    or responsavel_id in (select public.auth_responsavel_ids())
+    or conexao_id in (select public.auth_owned_conexao_ids())
+  );
+
+drop policy if exists "presencas_select" on public.presencas;
+create policy "presencas_select" on public.presencas
+  for select using (passageiro_id in (select public.auth_visible_passageiro_ids()));
+
+drop policy if exists "presencas_motorista_write" on public.presencas;
+create policy "presencas_motorista_write" on public.presencas
+  for all using (passageiro_id in (select public.auth_owned_passageiro_ids()));
+
+drop policy if exists "localizacoes_member_select" on public.localizacoes;
+create policy "localizacoes_member_select" on public.localizacoes
+  for select using (motorista_id in (select public.auth_member_motorista_ids()));
+
+drop policy if exists "alertas_select" on public.alertas;
+create policy "alertas_select" on public.alertas
+  for select using (passageiro_id in (select public.auth_self_passageiro_ids()));
+
+drop policy if exists "alertas_update_read" on public.alertas;
+create policy "alertas_update_read" on public.alertas
+  for update using (passageiro_id in (select public.auth_self_passageiro_ids()));
