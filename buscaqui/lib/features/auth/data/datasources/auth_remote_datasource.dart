@@ -12,7 +12,7 @@ class AuthRemoteDataSource {
   Future<AppUserModel?> currentUser() async {
     final user = _client.auth.currentUser;
     if (user == null) return null;
-    return _fetchProfile(user.id);
+    return _fetchProfile(user);
   }
 
   Future<AppUserModel> signUp({
@@ -32,7 +32,24 @@ class AuthRemoteDataSource {
     if (user == null) {
       throw const AuthException('Não foi possível concluir o cadastro.');
     }
-    return _fetchProfile(user.id);
+
+    // GoTrue, por segurança, devolve um usuário "ofuscado" (sem identities)
+    // quando o e-mail já está cadastrado — em vez de vazar essa informação.
+    final identities = user.identities;
+    if (identities != null && identities.isEmpty) {
+      throw const AuthException(
+        'Este e-mail já possui cadastro. Tente fazer login.',
+      );
+    }
+
+    // Sem sessão = projeto exige confirmação de e-mail antes de entrar.
+    if (res.session == null) {
+      throw const AuthException(
+        'Cadastro criado! Confirme seu e-mail para poder entrar.',
+      );
+    }
+
+    return _fetchProfile(user);
   }
 
   Future<AppUserModel> signIn({
@@ -45,7 +62,7 @@ class AuthRemoteDataSource {
     if (user == null) {
       throw const AuthException('Credenciais inválidas.');
     }
-    return _fetchProfile(user.id);
+    return _fetchProfile(user);
   }
 
   Future<void> signInWithGoogle() =>
@@ -59,23 +76,22 @@ class AuthRemoteDataSource {
 
   Future<void> signOut() => _client.auth.signOut();
 
-  Future<AppUserModel> _fetchProfile(String id) async {
+  Future<AppUserModel> _fetchProfile(User user) async {
     // maybeSingle: logo após o signUp o trigger pode levar instantes; tratamos.
     final row = await _client
         .from('usuarios')
         .select()
-        .eq('id', id)
+        .eq('id', user.id)
         .maybeSingle();
 
     if (row == null) {
-      // Fallback mínimo com dados do Auth enquanto o perfil propaga.
-      final authUser = _client.auth.currentUser!;
+      // Fallback com os dados do próprio usuário do Auth (sem currentUser!).
       return AppUserModel(
-        id: id,
-        nome: authUser.userMetadata?['nome'] as String? ?? '',
-        email: authUser.email ?? '',
+        id: user.id,
+        nome: user.userMetadata?['nome'] as String? ?? '',
+        email: user.email ?? '',
         role: UserRole.fromString(
-          authUser.userMetadata?['tipo_usuario'] as String? ?? 'passageiro',
+          user.userMetadata?['tipo_usuario'] as String? ?? 'passageiro',
         ),
       );
     }
