@@ -4,19 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/alerts/presentation/pages/alerts_page.dart';
+import '../../features/attendance/presentation/pages/manual_attendance_page.dart';
+import '../../features/attendance/presentation/pages/qr_scanner_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/passenger_info_page.dart';
 import '../../features/auth/presentation/pages/register_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
-import '../../features/alerts/presentation/pages/alerts_page.dart';
-import '../../features/attendance/presentation/pages/manual_attendance_page.dart';
-import '../../features/attendance/presentation/pages/qr_scanner_page.dart';
-import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/connections/domain/entities/conexao.dart';
 import '../../features/connections/presentation/pages/connections_page.dart';
 import '../../features/connections/presentation/pages/join_connection_page.dart';
 import '../../features/connections/presentation/pages/qr_generator_page.dart';
+import '../../features/dashboard/presentation/pages/dashboard_page.dart';
+import '../../features/tracking/presentation/pages/tracking_page.dart';
 import 'app_routes.dart';
 import 'placeholder_page.dart';
 
@@ -81,11 +82,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.tracking,
         builder: (context, state) {
           final conexao = state.extra as Conexao?;
-          return PlaceholderPage(
-            title: conexao == null
-                ? 'Monitoramento ao vivo'
-                : 'Localização — ${conexao.nomeConexao}',
-          );
+          if (conexao == null) {
+            return const PlaceholderPage(title: 'Monitoramento ao vivo');
+          }
+          return TrackingPage(conexao: conexao);
         },
       ),
       GoRoute(
