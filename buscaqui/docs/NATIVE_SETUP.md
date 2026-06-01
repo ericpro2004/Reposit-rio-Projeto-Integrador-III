@@ -53,12 +53,37 @@ declarada pelo plugin.
 <string>Usamos a câmera para ler o QR Code da van e registrar presença.</string>
 ```
 
-## 4. Notificações Push (Firebase Cloud Messaging)
+## 4. Notificações Push (Firebase Cloud Messaging) — JÁ IMPLEMENTADO
 
-1. Crie um projeto no Firebase e rode `flutterfire configure` (gera
-   `firebase_options.dart`, `google-services.json` e `GoogleService-Info.plist`
-   — todos já ignorados pelo `.gitignore`).
-2. Android: aplicar o plugin `com.google.gms.google-services`.
-3. O envio do push a partir do banco será feito por uma **Edge Function** do
-   Supabase disparada pelo trigger de alertas (`notify_absence`) — a função lê o
-   token FCM do responsável e chama a API do FCM. (A implementar.)
+O fluxo ponta a ponta já existe:
+`presença ausente` → trigger `notify_absence` cria alerta → trigger
+`after_alerta_insert_push` chama (via `pg_net`) a Edge Function
+`send-alert-push` → ela busca os tokens em `fcm_tokens` e envia via FCM HTTP v1.
+
+Falta apenas a **configuração de credenciais** (não versionada):
+
+### App (cliente)
+1. Rode `flutterfire configure` (gera `google-services.json`,
+   `GoogleService-Info.plist` — ambos ignorados pelo `.gitignore`). O
+   `PushService` chama `Firebase.initializeApp()` sem `firebase_options.dart`,
+   então a config nativa é suficiente.
+2. Android: aplicar o plugin `com.google.gms.google-services` no Gradle.
+3. iOS: habilitar *Push Notifications* e *Background Modes > Remote notifications*
+   no Xcode e subir a APNs key no Firebase.
+
+O app registra o token em `fcm_tokens` automaticamente ao logar.
+
+### Backend (Edge Function — secrets)
+No Supabase → Project Settings → Edge Functions, defina:
+- `FIREBASE_SERVICE_ACCOUNT` = conteúdo JSON da *service account* do Firebase
+  (Project settings → Service accounts → Generate new private key).
+- `EDGE_SHARED_SECRET` = um segredo forte qualquer.
+
+E configure o mesmo segredo no banco para o trigger enviá-lo:
+```sql
+alter database postgres set app.edge_secret = 'MESMO_VALOR_DO_EDGE_SHARED_SECRET';
+```
+Sem esses segredos, o trigger ainda dispara, mas a função retorna erro/`0 enviados`.
+
+> A função foi publicada com `verify_jwt = false` porque é um webhook do banco;
+> o controle de acesso é feito pelo header `x-edge-secret`.

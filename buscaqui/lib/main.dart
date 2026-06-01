@@ -5,9 +5,13 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'core/config/supabase_config.dart';
+import 'core/notifications/push_provider.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/presentation/providers/auth_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,12 +33,35 @@ Future<void> main() async {
   runApp(const ProviderScope(child: BusCaquiApp()));
 }
 
-class BusCaquiApp extends ConsumerWidget {
+class BusCaquiApp extends ConsumerStatefulWidget {
   const BusCaquiApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BusCaquiApp> createState() => _BusCaquiAppState();
+}
+
+class _BusCaquiAppState extends ConsumerState<BusCaquiApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Inicializa o push de forma resiliente e registra o token se já logado.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final push = ref.read(pushServiceProvider);
+      await push.initialize();
+      await push.registerCurrentToken();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
+
+    // Ao entrar (login/cadastro), registra o token FCM do dispositivo.
+    ref.listen(authStateChangesProvider, (_, next) {
+      if (next.valueOrNull?.event == AuthChangeEvent.signedIn) {
+        ref.read(pushServiceProvider).registerCurrentToken();
+      }
+    });
 
     return MaterialApp.router(
       title: 'BusCaqui',

@@ -448,3 +448,58 @@ revoke execute on function public.register_presence(text, presenca_origem) from 
 grant execute on function public.join_connection(text) to authenticated;
 grant execute on function public.refresh_connection_token(uuid) to authenticated;
 grant execute on function public.register_presence(text, presenca_origem) to authenticated;
+
+-- ============================================================================
+--  PUSH NOTIFICATIONS (FCM)
+-- ============================================================================
+-- Tokens FCM por usuário (um usuário pode ter vários dispositivos).
+create table if not exists public.fcm_tokens (
+  id            uuid primary key default gen_random_uuid(),
+  usuario_id    uuid not null references public.usuarios (id) on delete cascade,
+  token         text not null unique,
+  plataforma    text,
+  criado_em     timestamptz not null default now(),
+  atualizado_em timestamptz not null default now()
+);
+create index if not exists idx_fcm_tokens_usuario on public.fcm_tokens (usuario_id);
+
+alter table public.fcm_tokens enable row level security;
+create policy "fcm_tokens_owner_select" on public.fcm_tokens
+  for select using (usuario_id = auth.uid());
+create policy "fcm_tokens_owner_insert" on public.fcm_tokens
+  for insert with check (usuario_id = auth.uid());
+create policy "fcm_tokens_owner_update" on public.fcm_tokens
+  for update using (usuario_id = auth.uid());
+create policy "fcm_tokens_owner_delete" on public.fcm_tokens
+  for delete using (usuario_id = auth.uid());
+
+-- Ao inserir um alerta, dispara a Edge Function `send-alert-push` (FCM) via
+-- pg_net. O segredo é lido de current_setting('app.edge_secret') quando
+-- configurado; defina-o e a env EDGE_SHARED_SECRET na função para proteger.
+create extension if not exists pg_net with schema extensions;
+
+create or replace function public.on_alerta_push()
+returns trigger
+language plpgsql
+security definer set search_path = public, extensions
+as $$
+declare
+  v_secret text := current_setting('app.edge_secret', true);
+begin
+  perform net.http_post(
+    url := 'https://bwaccsnxctduxglagucp.supabase.co/functions/v1/send-alert-push',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-edge-secret', coalesce(v_secret, '')
+    ),
+    body := jsonb_build_object('alerta_id', new.id)
+  );
+  return new;
+end $$;
+
+revoke execute on function public.on_alerta_push() from public, anon, authenticated;
+
+drop trigger if exists after_alerta_insert_push on public.alertas;
+create trigger after_alerta_insert_push
+  after insert on public.alertas
+  for each row execute function public.on_alerta_push();
