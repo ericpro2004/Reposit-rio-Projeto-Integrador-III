@@ -203,6 +203,71 @@ create trigger after_presenca_absence
   for each row execute function public.notify_absence();
 
 -- ============================================================================
+--  RPCs (SECURITY DEFINER) — operações que contornam o RLS de forma controlada
+-- ============================================================================
+
+-- (R1) Passageiro entra em uma conexão pelo CÓDIGO. Necessário SECURITY DEFINER
+--      porque, antes de virar membro, o RLS impede o SELECT em `conexoes`.
+create or replace function public.join_connection(p_codigo text)
+returns public.conexoes
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_conexao public.conexoes;
+  v_updated int;
+begin
+  select * into v_conexao
+    from public.conexoes
+    where upper(codigo) = upper(trim(p_codigo))
+    limit 1;
+
+  if v_conexao.id is null then
+    raise exception 'Conexão não encontrada para o código informado.'
+      using errcode = 'P0002';
+  end if;
+
+  -- Vincula os passageiros sob a conta atual (passageiro ou responsável).
+  update public.passageiros p
+    set conexao_id = v_conexao.id
+    where p.usuario_id = auth.uid()
+       or p.responsavel_id in (
+            select r.id from public.responsaveis r where r.usuario_id = auth.uid()
+          );
+  get diagnostics v_updated = row_count;
+
+  if v_updated = 0 then
+    raise exception 'Nenhum passageiro vinculado à sua conta. Cadastre o aluno antes.'
+      using errcode = 'P0001';
+  end if;
+
+  return v_conexao;
+end $$;
+
+-- (R2) Motorista regenera o token/código da conexão (invalida o anterior).
+create or replace function public.refresh_connection_token(p_id uuid)
+returns public.conexoes
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_conexao public.conexoes;
+  v_code text;
+begin
+  v_code := upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 6));
+  update public.conexoes
+    set codigo = v_code,
+        qrcode_data = 'buscaqui://conexao/' || p_id || '?c=' || v_code
+    where id = p_id and motorista_id = auth.uid()
+    returning * into v_conexao;
+
+  if v_conexao.id is null then
+    raise exception 'Conexão não encontrada ou você não tem permissão.';
+  end if;
+  return v_conexao;
+end $$;
+
+-- ============================================================================
 --  REALTIME — habilita streaming de localização (e alertas)
 -- ============================================================================
 alter publication supabase_realtime add table public.localizacoes;

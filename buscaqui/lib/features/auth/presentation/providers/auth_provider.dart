@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
+import '../../domain/entities/app_user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/usecases/sign_in.dart';
 import '../../domain/usecases/sign_up.dart';
@@ -42,4 +43,12 @@ final sessionProvider = Provider<Session?>((ref) {
 /// Conveniência booleana para guards de rota.
 final isAuthenticatedProvider = Provider<bool>((ref) {
   return ref.watch(sessionProvider) != null;
+});
+
+/// Perfil completo do usuário autenticado (nome, role, foto). Recarrega quando
+/// o estado de autenticação muda.
+final currentAppUserProvider = FutureProvider<AppUser?>((ref) async {
+  ref.watch(authStateChangesProvider); // reage a login/logout
+  final result = await ref.watch(authRepositoryProvider).currentUser();
+  return result.match((_) => null, (user) => user);
 });
