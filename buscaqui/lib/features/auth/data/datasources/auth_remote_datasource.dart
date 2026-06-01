@@ -77,24 +77,30 @@ class AuthRemoteDataSource {
   Future<void> signOut() => _client.auth.signOut();
 
   Future<AppUserModel> _fetchProfile(User user) async {
-    // maybeSingle: logo após o signUp o trigger pode levar instantes; tratamos.
     final row = await _client
         .from('usuarios')
         .select()
         .eq('id', user.id)
         .maybeSingle();
 
-    if (row == null) {
-      // Fallback com os dados do próprio usuário do Auth (sem currentUser!).
-      return AppUserModel(
-        id: user.id,
-        nome: user.userMetadata?['nome'] as String? ?? '',
-        email: user.email ?? '',
-        role: UserRole.fromString(
-          user.userMetadata?['tipo_usuario'] as String? ?? 'passageiro',
-        ),
-      );
+    if (row != null) return AppUserModel.fromMap(row);
+
+    // Perfil ainda não existe (o trigger handle_new_user pode não ter rodado).
+    // Cria a partir dos metadados do Auth — fallback resiliente.
+    final model = AppUserModel(
+      id: user.id,
+      nome: user.userMetadata?['nome'] as String? ?? user.email ?? '',
+      email: user.email ?? '',
+      telefone: user.userMetadata?['telefone'] as String?,
+      role: UserRole.fromString(
+        user.userMetadata?['tipo_usuario'] as String? ?? 'passageiro',
+      ),
+    );
+    try {
+      await _client.from('usuarios').upsert(model.toMap());
+    } catch (_) {
+      // Best-effort: se falhar, seguimos com o perfil em memória.
     }
-    return AppUserModel.fromMap(row);
+    return model;
   }
 }

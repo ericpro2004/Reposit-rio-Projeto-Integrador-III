@@ -323,9 +323,11 @@ alter table public.presencas    enable row level security;
 alter table public.localizacoes enable row level security;
 alter table public.alertas      enable row level security;
 
--- USUARIOS: cada um lê/edita o próprio perfil.
+-- USUARIOS: cada um lê/cria/edita o próprio perfil.
 create policy "usuarios_self_select" on public.usuarios
   for select using (auth.uid() = id);
+create policy "usuarios_self_insert" on public.usuarios
+  for insert with check (auth.uid() = id);
 create policy "usuarios_self_update" on public.usuarios
   for update using (auth.uid() = id);
 
