@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/config/supabase_config.dart';
 import 'core/router/app_router.dart';
@@ -13,6 +14,9 @@ Future<void> main() async {
 
   // 1. Carrega variáveis de ambiente (.env declarado em assets do pubspec).
   await dotenv.load(fileName: '.env');
+
+  // Formatação de datas em pt-BR (usada em alertas, dashboard, etc.).
+  await initializeDateFormatting('pt_BR', null);
 
   // 2. Inicializa o Supabase (Auth, Realtime, Storage, Postgres).
   await SupabaseConfig.initialize();

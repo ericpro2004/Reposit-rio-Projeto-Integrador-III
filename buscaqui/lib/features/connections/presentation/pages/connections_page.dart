@@ -6,6 +6,7 @@ import '../../../../core/error/failures.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_snackbar.dart';
+import '../../../alerts/presentation/providers/alert_providers.dart';
 import '../../../auth/domain/entities/app_user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/entities/conexao.dart';
@@ -29,10 +30,11 @@ class ConnectionsPage extends ConsumerWidget {
         title: const Text('Minhas Conexões'),
         actions: [
           IconButton(
-            tooltip: 'Alertas',
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => context.push(AppRoutes.alerts),
+            tooltip: 'Monitoramento',
+            icon: const Icon(Icons.insights_outlined),
+            onPressed: () => context.push(AppRoutes.dashboard),
           ),
+          _AlertsAction(unread: ref.watch(unreadAlertsCountProvider)),
         ],
       ),
       floatingActionButton: isMotorista
@@ -73,6 +75,25 @@ class ConnectionsPage extends ConsumerWidget {
       context,
       res.erro ?? 'Conexão "${res.conexao?.nomeConexao}" criada!',
       type: res.erro == null ? FeedbackType.success : FeedbackType.error,
+    );
+  }
+}
+
+/// Ícone de alertas com badge de não lidos (acessível via label dinâmico).
+class _AlertsAction extends StatelessWidget {
+  const _AlertsAction({required this.unread});
+  final int unread;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: unread > 0 ? 'Alertas, $unread não lidos' : 'Alertas',
+      onPressed: () => context.push(AppRoutes.alerts),
+      icon: Badge(
+        isLabelVisible: unread > 0,
+        label: Text('$unread'),
+        child: const Icon(Icons.notifications_outlined),
+      ),
     );
   }
 }

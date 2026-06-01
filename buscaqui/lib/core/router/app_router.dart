@@ -9,8 +9,10 @@ import '../../features/auth/presentation/pages/passenger_info_page.dart';
 import '../../features/auth/presentation/pages/register_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
+import '../../features/alerts/presentation/pages/alerts_page.dart';
 import '../../features/attendance/presentation/pages/manual_attendance_page.dart';
 import '../../features/attendance/presentation/pages/qr_scanner_page.dart';
+import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/connections/domain/entities/conexao.dart';
 import '../../features/connections/presentation/pages/connections_page.dart';
 import '../../features/connections/presentation/pages/join_connection_page.dart';
@@ -115,11 +117,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.alerts,
-        builder: (_, __) => const PlaceholderPage(title: 'Alertas'),
+        builder: (_, __) => const AlertsPage(),
       ),
       GoRoute(
         path: AppRoutes.dashboard,
-        builder: (_, __) => const PlaceholderPage(title: 'Dashboard'),
+        builder: (_, __) => const DashboardPage(),
       ),
     ],
     errorBuilder: (_, state) =>
