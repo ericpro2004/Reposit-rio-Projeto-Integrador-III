@@ -156,7 +156,7 @@ create trigger on_auth_user_created
 --     preenchidos pelo cliente.
 create or replace function public.gen_connection_code()
 returns trigger
-language plpgsql
+language plpgsql set search_path = public
 as $$
 begin
   if new.codigo is null or new.codigo = '' then
@@ -267,6 +267,45 @@ begin
   return v_conexao;
 end $$;
 
+-- (R3) Check-in do próprio passageiro via QR ou código (Tela 8). SECURITY
+--      DEFINER porque o RLS só permite que o motorista escreva em `presencas`.
+create or replace function public.register_presence(p_token text, p_origem presenca_origem)
+returns public.presencas
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_conexao public.conexoes;
+  v_passageiro_id uuid;
+  v_presenca public.presencas;
+begin
+  select * into v_conexao from public.conexoes
+    where qrcode_data = p_token or upper(codigo) = upper(trim(p_token))
+    limit 1;
+  if v_conexao.id is null then
+    raise exception 'QR Code inválido. Tente novamente ou insira o código manualmente.'
+      using errcode = 'P0002';
+  end if;
+
+  select p.id into v_passageiro_id from public.passageiros p
+    where p.conexao_id = v_conexao.id
+      and (p.usuario_id = auth.uid()
+           or p.responsavel_id in (
+                select r.id from public.responsaveis r where r.usuario_id = auth.uid()))
+    limit 1;
+  if v_passageiro_id is null then
+    raise exception 'Você não está vinculado a esta van. Entre na conexão primeiro.'
+      using errcode = 'P0001';
+  end if;
+
+  insert into public.presencas (passageiro_id, data, status, origem)
+  values (v_passageiro_id, current_date, 'presente', p_origem)
+  on conflict (passageiro_id, data)
+  do update set status = 'presente', origem = excluded.origem, horario_registro = now()
+  returning * into v_presenca;
+  return v_presenca;
+end $$;
+
 -- ============================================================================
 --  REALTIME — habilita streaming de localização (e alertas)
 -- ============================================================================
@@ -290,6 +329,14 @@ create policy "usuarios_self_select" on public.usuarios
 create policy "usuarios_self_update" on public.usuarios
   for update using (auth.uid() = id);
 
+-- RESPONSAVEIS: o próprio usuário responsável gerencia seu registro (Tela 4).
+create policy "responsaveis_owner_select" on public.responsaveis
+  for select using (usuario_id = auth.uid());
+create policy "responsaveis_owner_insert" on public.responsaveis
+  for insert with check (usuario_id = auth.uid());
+create policy "responsaveis_owner_update" on public.responsaveis
+  for update using (usuario_id = auth.uid());
+
 -- CONEXOES: motorista gerencia as suas; membros conseguem ler.
 create policy "conexoes_owner_all" on public.conexoes
   for all using (auth.uid() = motorista_id) with check (auth.uid() = motorista_id);
@@ -309,6 +356,23 @@ create policy "passageiros_visibility" on public.passageiros
                where c.id = passageiros.conexao_id and c.motorista_id = auth.uid())
     or exists (select 1 from public.responsaveis r
                where r.id = passageiros.responsavel_id and r.usuario_id = auth.uid())
+  );
+-- INSERT/UPDATE do vínculo (Tela 4) pelo próprio usuário; motorista também edita.
+create policy "passageiros_self_insert" on public.passageiros
+  for insert with check (
+    usuario_id = auth.uid()
+    or responsavel_id in (
+      select r.id from public.responsaveis r where r.usuario_id = auth.uid()
+    )
+  );
+create policy "passageiros_self_update" on public.passageiros
+  for update using (
+    usuario_id = auth.uid()
+    or responsavel_id in (
+      select r.id from public.responsaveis r where r.usuario_id = auth.uid()
+    )
+    or exists (select 1 from public.conexoes c
+               where c.id = passageiros.conexao_id and c.motorista_id = auth.uid())
   );
 
 -- PRESENCAS: visíveis para o motorista da conexão e para o passageiro/responsável.
@@ -368,3 +432,19 @@ create policy "alertas_update_read" on public.alertas
         and (p.usuario_id = auth.uid() or r.usuario_id = auth.uid())
     )
   );
+
+-- ============================================================================
+--  PRIVILÉGIOS DE EXECUÇÃO (mínimo necessário)
+-- ============================================================================
+-- Funções de trigger não são endpoints de API — revoga acesso por RPC.
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.notify_absence() from public, anon, authenticated;
+revoke execute on function public.gen_connection_code() from public, anon, authenticated;
+
+-- RPCs de negócio: apenas usuários autenticados (nunca anônimos).
+revoke execute on function public.join_connection(text) from public, anon;
+revoke execute on function public.refresh_connection_token(uuid) from public, anon;
+revoke execute on function public.register_presence(text, presenca_origem) from public, anon;
+grant execute on function public.join_connection(text) to authenticated;
+grant execute on function public.refresh_connection_token(uuid) to authenticated;
+grant execute on function public.register_presence(text, presenca_origem) to authenticated;

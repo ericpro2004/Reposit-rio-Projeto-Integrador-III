@@ -89,6 +89,12 @@ class _Content extends StatelessWidget {
       children: [
         if (!isMotorista) ...[
           AppButton(
+            label: 'Registrar presença (ler QR)',
+            icon: Icons.qr_code_scanner,
+            onPressed: () => context.push(AppRoutes.qrScanner),
+          ),
+          const SizedBox(height: 12),
+          AppButton(
             label: 'Entrar em uma conexão',
             icon: Icons.group_add,
             variant: AppButtonVariant.outlined,

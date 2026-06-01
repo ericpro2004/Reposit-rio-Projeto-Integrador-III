@@ -76,6 +76,23 @@ class ConnectionCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     Semantics(
                       button: true,
+                      label: 'Fazer chamada da conexão ${conexao.nomeConexao}',
+                      child: IconButton.filledTonal(
+                        iconSize: 26,
+                        constraints: const BoxConstraints(
+                          minWidth: 48,
+                          minHeight: 48,
+                        ),
+                        onPressed: () => context.push(
+                          AppRoutes.manualAttendance,
+                          extra: conexao,
+                        ),
+                        icon: const Icon(Icons.checklist),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Semantics(
+                      button: true,
                       label: 'Gerar QR Code da conexão ${conexao.nomeConexao}',
                       child: IconButton.filledTonal(
                         iconSize: 26,
