@@ -8,6 +8,7 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_snackbar.dart';
 import '../../../alerts/presentation/providers/alert_providers.dart';
 import '../../../auth/domain/entities/app_user.dart';
+import '../../../auth/presentation/providers/auth_controller.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/entities/conexao.dart';
 import '../providers/connection_providers.dart';
@@ -35,6 +36,11 @@ class ConnectionsPage extends ConsumerWidget {
             onPressed: () => context.push(AppRoutes.dashboard),
           ),
           _AlertsAction(unread: ref.watch(unreadAlertsCountProvider)),
+          IconButton(
+            tooltip: 'Sair da conta',
+            icon: const Icon(Icons.logout),
+            onPressed: () => _confirmLogout(context, ref),
+          ),
         ],
       ),
       floatingActionButton: isMotorista
@@ -76,6 +82,30 @@ class ConnectionsPage extends ConsumerWidget {
       res.erro ?? 'Conexão "${res.conexao?.nomeConexao}" criada!',
       type: res.erro == null ? FeedbackType.success : FeedbackType.error,
     );
+  }
+
+  Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
+    final sair = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sair da conta'),
+        content: const Text('Tem certeza que deseja sair?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sair'),
+          ),
+        ],
+      ),
+    );
+    if (sair != true || !context.mounted) return;
+
+    await ref.read(authControllerProvider.notifier).signOut();
+    if (context.mounted) context.go(AppRoutes.login);
   }
 }
 
