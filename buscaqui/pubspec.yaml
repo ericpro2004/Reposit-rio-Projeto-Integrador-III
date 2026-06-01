@@ -1,5 +1,5 @@
 name: buscaqui
-description: "BusCaqui — gestão, chamada e monitoramento de transporte escolar."
+description: "BusCaqui — Gestão, chamada automatizada e monitoramento em tempo real para transporte escolar."
 publish_to: "none"
 version: 1.0.0+1
 
@@ -10,15 +10,18 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
-  # Estado
+  # Gerenciamento de estado
   flutter_riverpod: ^2.5.1
-
-  # Backend / Auth / Realtime / Storage
-  supabase_flutter: ^2.5.6
+  riverpod_annotation: ^2.3.5
 
   # Navegação
   go_router: ^14.2.0
+
+  # Backend / Banco de dados
+  supabase_flutter: ^2.5.6
 
   # Mapas e tracking
   google_maps_flutter: ^2.6.1
@@ -28,23 +31,44 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^5.1.1
 
-  # Notificações Push
+  # Notificações push
   firebase_core: ^3.1.0
   firebase_messaging: ^15.0.0
+  flutter_local_notifications: ^17.1.2
 
-  # Dashboard / gráficos
-  fl_chart: ^0.68.0
-
-  # Utilidades
+  # Utilitários
+  intl: ^0.19.0
+  equatable: ^2.0.5
+  dartz: ^0.10.1
+  fpdart: ^1.1.0
   share_plus: ^9.0.0
-  cupertino_icons: ^1.0.6
+  image_picker: ^1.1.2
+  fl_chart: ^0.68.0
+  flutter_dotenv: ^5.1.0
+  cupertino_icons: ^1.0.8
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  build_runner: ^2.4.11
+  riverpod_generator: ^2.4.0
+  custom_lint: ^0.6.4
+  riverpod_lint: ^2.3.10
 
 flutter:
   uses-material-design: true
-  # assets:
-  #   - assets/images/
+  assets:
+    - .env
+    - assets/images/
+    - assets/icons/
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700

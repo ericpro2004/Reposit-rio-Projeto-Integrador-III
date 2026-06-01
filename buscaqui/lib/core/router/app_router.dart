@@ -1,93 +1,76 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/auth/presentation/pages/splash_page.dart';
-import '../../features/auth/presentation/pages/welcome_page.dart';
-import 'placeholder_pages.dart';
+import '../../features/auth/presentation/providers/auth_provider.dart';
+import 'app_routes.dart';
+import 'placeholder_page.dart';
 
-/// Nomes/rotas centralizados para evitar strings soltas pelo app.
-abstract final class AppRoutes {
-  static const splash = '/';
-  static const welcome = '/welcome';
-  static const login = '/login';
-  static const register = '/register';
-  static const passengerInfo = '/passenger-info';
-  static const connections = '/connections';
-  static const joinConnection = '/join-connection';
-  static const qrGenerator = '/qr-generator';
-  static const qrScanner = '/qr-scanner';
-  static const manualAttendance = '/manual-attendance';
-  static const alerts = '/alerts';
-  static const dashboard = '/dashboard';
-}
-
-/// Expõe o cliente Supabase para a árvore de providers.
-final supabaseClientProvider = Provider<SupabaseClient>(
-  (ref) => Supabase.instance.client,
-);
-
-/// Stream do estado de autenticação — usado pelo router para redirecionar.
-final authStateProvider = StreamProvider<AuthState>(
-  (ref) => ref.watch(supabaseClientProvider).auth.onAuthStateChange,
-);
-
-final appRouterProvider = Provider<GoRouter>((ref) {
-  final client = ref.watch(supabaseClientProvider);
+/// Provider do roteador. O `redirect` reage a mudanças de autenticação
+/// observando [authStateChangesProvider] via [_GoRouterRefreshStream].
+final routerProvider = Provider<GoRouter>((ref) {
+  final refresh = _GoRouterRefreshStream(ref);
 
   return GoRouter(
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: true,
-    // Revalida as rotas a cada mudança de sessão (login/logout).
-    refreshListenable: _GoRouterRefresh(client.auth.onAuthStateChange),
+    refreshListenable: refresh,
     redirect: (context, state) {
-      final loggedIn = client.auth.currentSession != null;
+      final isAuthed = ref.read(isAuthenticatedProvider);
       final loc = state.matchedLocation;
 
-      // A splash decide sozinha para onde ir (não interceptamos).
+      const publicRoutes = {
+        AppRoutes.splash,
+        AppRoutes.register,
+        AppRoutes.login,
+        AppRoutes.passengerInfo,
+      };
+      final isPublic = publicRoutes.contains(loc);
+
+      // Mantém a splash livre — ela decide para onde ir.
       if (loc == AppRoutes.splash) return null;
 
-      const publicRoutes = {
-        AppRoutes.welcome,
-        AppRoutes.login,
-        AppRoutes.register,
-      };
-      final inPublic = publicRoutes.contains(loc);
-
-      if (!loggedIn && !inPublic) return AppRoutes.welcome;
-      if (loggedIn && inPublic) return AppRoutes.connections;
+      if (!isAuthed && !isPublic) return AppRoutes.login;
+      if (isAuthed && (loc == AppRoutes.login || loc == AppRoutes.register)) {
+        return AppRoutes.connections;
+      }
       return null;
     },
     routes: [
       GoRoute(
         path: AppRoutes.splash,
+        name: 'splash',
         builder: (_, __) => const SplashPage(),
       ),
+      // As telas abaixo entram como placeholders acessíveis e serão
+      // substituídas pelas implementações reais de cada feature.
       GoRoute(
-        path: AppRoutes.welcome,
-        builder: (_, __) => const WelcomePage(),
+        path: AppRoutes.register,
+        builder: (_, __) => const PlaceholderPage(title: 'Cadastro'),
       ),
       GoRoute(
         path: AppRoutes.login,
         builder: (_, __) => const PlaceholderPage(title: 'Login'),
       ),
       GoRoute(
-        path: AppRoutes.register,
-        builder: (_, __) => const PlaceholderPage(title: 'Criar conta'),
-      ),
-      GoRoute(
         path: AppRoutes.passengerInfo,
         builder: (_, __) =>
-            const PlaceholderPage(title: 'Informações do passageiro'),
+            const PlaceholderPage(title: 'Informações do Passageiro'),
       ),
       GoRoute(
         path: AppRoutes.connections,
-        builder: (_, __) => const PlaceholderPage(title: 'Minhas conexões'),
+        builder: (_, __) => const PlaceholderPage(title: 'Minhas Conexões'),
       ),
       GoRoute(
         path: AppRoutes.joinConnection,
-        builder: (_, __) => const PlaceholderPage(title: 'Entrar em conexão'),
+        builder: (_, __) => const PlaceholderPage(title: 'Entrar em Conexão'),
+      ),
+      GoRoute(
+        path: AppRoutes.tracking,
+        builder: (_, __) => const PlaceholderPage(title: 'Monitoramento ao vivo'),
       ),
       GoRoute(
         path: AppRoutes.qrGenerator,
@@ -99,7 +82,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.manualAttendance,
-        builder: (_, __) => const PlaceholderPage(title: 'Chamada manual'),
+        builder: (_, __) => const PlaceholderPage(title: 'Chamada Manual'),
       ),
       GoRoute(
         path: AppRoutes.alerts,
@@ -107,25 +90,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.dashboard,
-        builder: (_, __) => const PlaceholderPage(title: 'Monitoramento'),
+        builder: (_, __) => const PlaceholderPage(title: 'Dashboard'),
       ),
     ],
     errorBuilder: (_, state) =>
-        PlaceholderPage(title: 'Rota não encontrada: ${state.uri}'),
+        PlaceholderPage(title: 'Página não encontrada: ${state.uri}'),
   );
 });
 
-/// Adapta um Stream para o Listenable que o GoRouter espera no refresh.
-class _GoRouterRefresh extends ChangeNotifier {
-  _GoRouterRefresh(Stream<dynamic> stream) {
-    notifyListeners();
-    _sub = stream.asBroadcastStream().listen((_) => notifyListeners());
+/// Ponte entre o stream do Riverpod e o `refreshListenable` do GoRouter.
+class _GoRouterRefreshStream extends ChangeNotifier {
+  _GoRouterRefreshStream(Ref ref) {
+    _sub = ref.listen(
+      authStateChangesProvider,
+      (_, __) => notifyListeners(),
+      fireImmediately: false,
+    );
+    ref.onDispose(() => _sub.close());
   }
-  late final dynamic _sub;
 
-  @override
-  void dispose() {
-    _sub?.cancel();
-    super.dispose();
-  }
+  late final ProviderSubscription _sub;
 }

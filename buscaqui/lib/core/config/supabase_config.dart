@@ -1,23 +1,31 @@
-/// Credenciais do Supabase.
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'env.dart';
+
+/// Inicialização e acesso ao cliente Supabase.
 ///
-/// NÃO commite chaves reais. Passe-as em tempo de build/execução:
-///   flutter run --dart-define=SUPABASE_URL=https://xxxx.supabase.co \
-///               --dart-define=SUPABASE_ANON_KEY=ey...
-///
-/// No Azure DevOps Pipelines, defina-as como variáveis secretas e injete
-/// via --dart-define no passo de build.
-class SupabaseConfig {
-  SupabaseConfig._();
+/// Deve ser chamado uma única vez em [main], após `dotenv.load` e
+/// `WidgetsFlutterBinding.ensureInitialized()`.
+abstract final class SupabaseConfig {
+  static Future<void> initialize() async {
+    await Supabase.initialize(
+      url: Env.supabaseUrl,
+      anonKey: Env.supabaseAnonKey,
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+      ),
+      realtimeClientOptions: const RealtimeClientOptions(
+        logLevel: RealtimeLogLevel.info,
+      ),
+    );
+  }
 
-  static const String url = String.fromEnvironment(
-    'SUPABASE_URL',
-    defaultValue: '',
-  );
+  /// Atalho para o cliente já inicializado.
+  static SupabaseClient get client => Supabase.instance.client;
 
-  static const String anonKey = String.fromEnvironment(
-    'SUPABASE_ANON_KEY',
-    defaultValue: '',
-  );
+  /// Sessão atual (ou null se não autenticado).
+  static Session? get session => client.auth.currentSession;
 
-  static bool get isConfigured => url.isNotEmpty && anonKey.isNotEmpty;
+  /// Usuário autenticado (ou null).
+  static User? get currentUser => client.auth.currentUser;
 }

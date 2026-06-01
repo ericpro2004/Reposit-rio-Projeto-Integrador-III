@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Placeholder acessível para telas em construção (Telas 2 a 11).
-/// Substitua cada uma pela implementação real dentro de sua feature.
+/// Página temporária acessível usada enquanto cada feature (Telas 2–11)
+/// não tem sua implementação final. Mantém o app navegável e testável.
 class PlaceholderPage extends StatelessWidget {
   const PlaceholderPage({super.key, required this.title});
 
@@ -15,11 +15,11 @@ class PlaceholderPage extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Semantics(
-            label: 'Tela $title em construção',
+            header: true,
             child: Text(
-              'Tela "$title"\nem construção.',
+              'Tela "$title" em construção',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(context).textTheme.titleLarge,
             ),
           ),
         ),

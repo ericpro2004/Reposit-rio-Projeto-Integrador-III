@@ -1,0 +1,35 @@
+# Segredos — NUNCA versionar
+.env
+
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+*.g.dart        # gerados por build_runner (riverpod_generator)
+*.freezed.dart
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/launch.json
+*.iml
+
+# Android
+android/.gradle/
+android/key.properties
+*.keystore
+*.jks
+
+# iOS / macOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/flutter_export_environment.sh
+**/GoogleService-Info.plist
+
+# Firebase
+google-services.json
+firebase_options.dart
