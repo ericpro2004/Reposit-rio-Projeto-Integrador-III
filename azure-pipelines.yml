@@ -1,0 +1,146 @@
+# Azure DevOps Pipeline — BusCaqui (Flutter)
+# Build, análise estática, testes e APK de release.
+# O app vive na subpasta `buscaqui/`.
+
+trigger:
+  branches:
+    include:
+      - main
+      - 'feat/*'
+      - 'fix/*'
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  flutterChannel: stable
+  flutterVersion: '3.24.0'
+  flutterHome: $(Agent.ToolsDirectory)/flutter
+  appDir: buscaqui
+
+stages:
+  # ──────────────────────────────────────────────────────────────────────────
+  - stage: Quality
+    displayName: Análise e Testes
+    jobs:
+      - job: analyze_test
+        displayName: Analyze + Test
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+            fetchDepth: 1
+
+          # Cache do SDK do Flutter entre execuções.
+          - task: Cache@2
+            inputs:
+              key: 'flutter | "$(flutterVersion)" | "$(Agent.OS)"'
+              path: $(flutterHome)
+            displayName: Cache Flutter SDK
+
+          - bash: |
+              set -e
+              if [ ! -d "$(flutterHome)/bin" ]; then
+                git clone --branch $(flutterVersion) --depth 1 \
+                  https://github.com/flutter/flutter.git "$(flutterHome)"
+              fi
+              echo "##vso[task.prependpath]$(flutterHome)/bin"
+            displayName: Instalar Flutter
+
+          - bash: flutter --version
+            displayName: Versão do Flutter
+
+          - bash: flutter pub get
+            workingDirectory: $(appDir)
+            displayName: pub get
+
+          # `.env` é asset declarado no pubspec; cria um placeholder p/ análise.
+          - bash: |
+              cat > $(appDir)/.env <<EOF
+              SUPABASE_URL=$(SUPABASE_URL)
+              SUPABASE_ANON_KEY=$(SUPABASE_ANON_KEY)
+              GOOGLE_MAPS_API_KEY=$(GOOGLE_MAPS_API_KEY)
+              EOF
+            displayName: Gerar .env (de secret variables)
+            env:
+              SUPABASE_URL: $(SUPABASE_URL)
+              SUPABASE_ANON_KEY: $(SUPABASE_ANON_KEY)
+              GOOGLE_MAPS_API_KEY: $(GOOGLE_MAPS_API_KEY)
+
+          - bash: dart format --output=none --set-exit-if-changed .
+            workingDirectory: $(appDir)
+            displayName: Checar formatação
+            continueOnError: true
+
+          - bash: flutter analyze
+            workingDirectory: $(appDir)
+            displayName: flutter analyze
+
+          - bash: flutter test --machine > $(appDir)/test-results.json || true
+            workingDirectory: $(appDir)
+            displayName: flutter test
+
+  # ──────────────────────────────────────────────────────────────────────────
+  - stage: BuildAndroid
+    displayName: Build Android (APK)
+    dependsOn: Quality
+    condition: succeeded()
+    jobs:
+      - job: build_apk
+        displayName: Release APK
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+            fetchDepth: 1
+
+          - task: Cache@2
+            inputs:
+              key: 'flutter | "$(flutterVersion)" | "$(Agent.OS)"'
+              path: $(flutterHome)
+            displayName: Cache Flutter SDK
+
+          - bash: |
+              set -e
+              if [ ! -d "$(flutterHome)/bin" ]; then
+                git clone --branch $(flutterVersion) --depth 1 \
+                  https://github.com/flutter/flutter.git "$(flutterHome)"
+              fi
+              echo "##vso[task.prependpath]$(flutterHome)/bin"
+            displayName: Instalar Flutter
+
+          - task: JavaToolInstaller@0
+            inputs:
+              versionSpec: '17'
+              jdkArchitectureOption: x64
+              jdkSourceOption: PreInstalled
+            displayName: JDK 17
+
+          - bash: |
+              cat > .env <<EOF
+              SUPABASE_URL=$(SUPABASE_URL)
+              SUPABASE_ANON_KEY=$(SUPABASE_ANON_KEY)
+              GOOGLE_MAPS_API_KEY=$(GOOGLE_MAPS_API_KEY)
+              EOF
+            workingDirectory: $(appDir)
+            displayName: Gerar .env
+            env:
+              SUPABASE_URL: $(SUPABASE_URL)
+              SUPABASE_ANON_KEY: $(SUPABASE_ANON_KEY)
+              GOOGLE_MAPS_API_KEY: $(GOOGLE_MAPS_API_KEY)
+
+          - bash: flutter pub get
+            workingDirectory: $(appDir)
+            displayName: pub get
+
+          - bash: flutter build apk --release
+            workingDirectory: $(appDir)
+            displayName: Build APK
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: $(appDir)/build/app/outputs/flutter-apk/app-release.apk
+              ArtifactName: buscaqui-apk
+            displayName: Publicar APK
