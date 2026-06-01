@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/router/app_routes.dart';
-import '../../../../core/widgets/app_button.dart';
 import '../providers/auth_provider.dart';
 
 /// Tela 1 — Splash / Login inicial.

@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/presentation/pages/login_page.dart';
+import '../../features/auth/presentation/pages/passenger_info_page.dart';
+import '../../features/auth/presentation/pages/register_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import 'app_routes.dart';
@@ -49,16 +52,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       // substituídas pelas implementações reais de cada feature.
       GoRoute(
         path: AppRoutes.register,
-        builder: (_, __) => const PlaceholderPage(title: 'Cadastro'),
+        builder: (_, __) => const RegisterPage(),
       ),
       GoRoute(
         path: AppRoutes.login,
-        builder: (_, __) => const PlaceholderPage(title: 'Login'),
+        builder: (_, __) => const LoginPage(),
       ),
       GoRoute(
         path: AppRoutes.passengerInfo,
-        builder: (_, __) =>
-            const PlaceholderPage(title: 'Informações do Passageiro'),
+        builder: (_, __) => const PassengerInfoPage(),
       ),
       GoRoute(
         path: AppRoutes.connections,
