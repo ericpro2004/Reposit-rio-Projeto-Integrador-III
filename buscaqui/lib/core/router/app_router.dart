@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/alerts/presentation/pages/alerts_page.dart';
 import '../../features/attendance/presentation/pages/manual_attendance_page.dart';
-import '../../features/attendance/presentation/pages/qr_scanner_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/passenger_info_page.dart';
 import '../../features/auth/presentation/pages/register_page.dart';
@@ -12,12 +11,17 @@ import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/connections/domain/entities/conexao.dart';
 import '../../features/connections/presentation/pages/connections_page.dart';
-import '../../features/connections/presentation/pages/join_connection_page.dart';
 import '../../features/connections/presentation/pages/qr_generator_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
+import '../../features/links/presentation/pages/vinculos_page.dart';
 import '../../features/tracking/presentation/pages/tracking_page.dart';
+import '../navigation/main_shell.dart';
+import '../navigation/role_tabs.dart';
 import 'app_routes.dart';
 import 'placeholder_page.dart';
+
+/// Navegadores: raiz (telas full-screen) e da casca (abas).
+final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 /// Provider do roteador. O `redirect` reage a mudanças de autenticação
 /// observando [authStateChangesProvider] via [_GoRouterRefreshStream].
@@ -25,6 +29,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _GoRouterRefreshStream(ref);
 
   return GoRouter(
+    navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: true,
     refreshListenable: refresh,
@@ -68,14 +73,44 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.passengerInfo,
         builder: (_, __) => const PassengerInfoPage(),
       ),
-      GoRoute(
-        path: AppRoutes.connections,
-        builder: (_, __) => const ConnectionsPage(),
+      // Abas principais (barra inferior persistente via MainShell).
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            MainShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: AppRoutes.connections, // Início
+              builder: (_, __) => const ConnectionsPage(),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: AppRoutes.joinConnection, // Conexão (aluno) / Chamada (motorista)
+              builder: (_, __) => const ConnectionOrCallTab(),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: AppRoutes.qrScanner, // Centro: Ler QR (aluno) / Gerar QR (motorista)
+              builder: (_, __) => const ScanOrGenerateTab(),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: AppRoutes.dashboard, // Monitorar
+              builder: (_, __) => const DashboardPage(),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: AppRoutes.alerts, // Mensagens
+              builder: (_, __) => const AlertsPage(),
+            ),
+          ]),
+        ],
       ),
-      GoRoute(
-        path: AppRoutes.joinConnection,
-        builder: (_, __) => const JoinConnectionPage(),
-      ),
+      // Telas full-screen (abertas por cima da casca).
       GoRoute(
         path: AppRoutes.tracking,
         builder: (context, state) {
@@ -97,10 +132,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        path: AppRoutes.qrScanner,
-        builder: (_, __) => const QrScannerPage(),
-      ),
-      GoRoute(
         path: AppRoutes.manualAttendance,
         builder: (context, state) {
           final conexao = state.extra as Conexao?;
@@ -114,12 +145,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        path: AppRoutes.alerts,
-        builder: (_, __) => const AlertsPage(),
-      ),
-      GoRoute(
-        path: AppRoutes.dashboard,
-        builder: (_, __) => const DashboardPage(),
+        path: AppRoutes.vinculos,
+        builder: (_, __) => const VinculosPage(),
       ),
     ],
     errorBuilder: (_, state) =>

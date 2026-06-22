@@ -51,14 +51,12 @@ class _JoinConnectionPageState extends ConsumerState<JoinConnectionPage> {
   Widget build(BuildContext context) {
     final isLoading = ref.watch(connectionControllerProvider).isLoading;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Entrar em Conexão')),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
+    return SafeArea(
+      child: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
               const SizedBox(height: 8),
               Text(
                 'Digite o código que o motorista compartilhou com você.',
@@ -90,8 +88,7 @@ class _JoinConnectionPageState extends ConsumerState<JoinConnectionPage> {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 }
 

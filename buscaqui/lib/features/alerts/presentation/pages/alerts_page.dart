@@ -14,32 +14,29 @@ class AlertsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final alertsAsync = ref.watch(alertsStreamProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Alertas')),
-      body: alertsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Não foi possível carregar os alertas.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+    return alertsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Não foi possível carregar os alertas.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge,
           ),
         ),
-        data: (alertas) {
-          if (alertas.isEmpty) {
-            return _EmptyState();
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(12),
-            itemCount: alertas.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 4),
-            itemBuilder: (_, i) => _AlertTile(alerta: alertas[i]),
-          );
-        },
       ),
+      data: (alertas) {
+        if (alertas.isEmpty) {
+          return _EmptyState();
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.all(12),
+          itemCount: alertas.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 4),
+          itemBuilder: (_, i) => _AlertTile(alerta: alertas[i]),
+        );
+      },
     );
   }
 }

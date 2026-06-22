@@ -612,3 +612,69 @@ create policy "alertas_select" on public.alertas
 drop policy if exists "alertas_update_read" on public.alertas;
 create policy "alertas_update_read" on public.alertas
   for update using (passageiro_id in (select public.auth_self_passageiro_ids()));
+
+-- ============================================================================
+--  VÍNCULOS — retorna as relações do usuário logado conforme o papel.
+--  SECURITY DEFINER para exibir nomes de usuários relacionados (que o RLS
+--  normalmente oculta entre perfis diferentes).
+-- ============================================================================
+create or replace function public.my_links()
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_role tipo_usuario;
+  v_result jsonb;
+begin
+  select tipo_usuario into v_role from public.usuarios where id = v_uid;
+
+  if v_role = 'motorista' then
+    select jsonb_build_object('role','motorista','vans', coalesce(jsonb_agg(van),'[]'::jsonb))
+      into v_result
+    from (
+      select jsonb_build_object(
+        'conexao', c.nome_conexao, 'codigo', c.codigo,
+        'passageiros', coalesce((
+          select jsonb_agg(jsonb_build_object(
+                   'nome', p.nome, 'responsavel', r.nome,
+                   'responsavel_telefone', r.telefone) order by p.nome)
+          from public.passageiros p
+          left join public.responsaveis r on r.id = p.responsavel_id
+          where p.conexao_id = c.id), '[]'::jsonb)
+      ) as van
+      from public.conexoes c where c.motorista_id = v_uid order by c.nome_conexao
+    ) t;
+  elsif v_role = 'responsavel' then
+    select jsonb_build_object('role','responsavel','alunos', coalesce(jsonb_agg(aluno),'[]'::jsonb))
+      into v_result
+    from (
+      select jsonb_build_object('nome', p.nome, 'idade', p.idade,
+                                'van', c.nome_conexao, 'motorista', mu.nome) as aluno
+      from public.passageiros p
+      left join public.conexoes c on c.id = p.conexao_id
+      left join public.usuarios mu on mu.id = c.motorista_id
+      where p.responsavel_id in (select id from public.responsaveis where usuario_id = v_uid)
+      order by p.nome
+    ) t;
+  else
+    select jsonb_build_object('role','passageiro','alunos', coalesce(jsonb_agg(aluno),'[]'::jsonb))
+      into v_result
+    from (
+      select jsonb_build_object('nome', p.nome, 'van', c.nome_conexao,
+               'motorista', mu.nome, 'responsavel', r.nome,
+               'responsavel_telefone', r.telefone) as aluno
+      from public.passageiros p
+      left join public.conexoes c on c.id = p.conexao_id
+      left join public.usuarios mu on mu.id = c.motorista_id
+      left join public.responsaveis r on r.id = p.responsavel_id
+      where p.usuario_id = v_uid order by p.nome
+    ) t;
+  end if;
+
+  return coalesce(v_result, jsonb_build_object('role', coalesce(v_role::text,'desconhecido')));
+end $$;
+
+revoke execute on function public.my_links() from public, anon;
+grant execute on function public.my_links() to authenticated;

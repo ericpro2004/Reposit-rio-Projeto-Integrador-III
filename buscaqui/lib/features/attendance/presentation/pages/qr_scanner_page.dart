@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_snackbar.dart';
 import '../../../../core/widgets/app_text_field.dart';
@@ -46,7 +48,7 @@ class _QrScannerPageState extends ConsumerState<QrScannerPage> {
     if (res.erro == null) {
       showAppFeedback(context, 'Presença registrada com sucesso!',
           type: FeedbackType.success);
-      Navigator.of(context).maybePop();
+      context.go(AppRoutes.connections); // volta para a aba Início
     } else {
       showAppFeedback(context, res.erro!, type: FeedbackType.error);
       // Permite nova tentativa.
@@ -68,67 +70,70 @@ class _QrScannerPageState extends ConsumerState<QrScannerPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ler QR Code'),
-        actions: [
-          IconButton(
-            tooltip: 'Ligar/desligar lanterna',
-            onPressed: () => _controller.toggleTorch(),
-            icon: const Icon(Icons.flash_on),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                MobileScanner(controller: _controller, onDetect: _onDetect),
-                // Moldura visual da área de leitura.
-                IgnorePointer(
-                  child: Container(
-                    width: 240,
-                    height: 240,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.white, width: 3),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+    return Column(
+      children: [
+        Expanded(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              MobileScanner(controller: _controller, onDetect: _onDetect),
+              // Moldura visual da área de leitura.
+              IgnorePointer(
+                child: Container(
+                  width: 240,
+                  height: 240,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.white, width: 3),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                if (_processing)
-                  Container(
-                    color: Colors.black54,
-                    child: const Center(child: CircularProgressIndicator()),
-                  ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    'Aponte a câmera para o QR Code da van.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              // Botão da lanterna sobreposto.
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Material(
+                  color: Colors.black45,
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    tooltip: 'Ligar/desligar lanterna',
+                    color: Colors.white,
+                    onPressed: () => _controller.toggleTorch(),
+                    icon: const Icon(Icons.flash_on),
                   ),
                 ),
-                const SizedBox(height: 16),
-                AppButton(
-                  label: 'Inserir código manualmente',
-                  icon: Icons.keyboard,
-                  variant: AppButtonVariant.outlined,
-                  onPressed: _processing ? null : _manualEntry,
+              ),
+              if (_processing)
+                Container(
+                  color: Colors.black54,
+                  child: const Center(child: CircularProgressIndicator()),
                 ),
-              ],
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  'Aponte a câmera para o QR Code da van.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+              ),
+              const SizedBox(height: 16),
+              AppButton(
+                label: 'Inserir código manualmente',
+                icon: Icons.keyboard,
+                variant: AppButtonVariant.outlined,
+                onPressed: _processing ? null : _manualEntry,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

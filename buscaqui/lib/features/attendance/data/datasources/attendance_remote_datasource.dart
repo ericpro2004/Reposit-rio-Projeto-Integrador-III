@@ -45,6 +45,44 @@ class AttendanceRemoteDataSource {
     }).toList();
   }
 
+  /// Roster em TEMPO REAL: busca os passageiros uma vez e faz stream das
+  /// presenças de hoje (Realtime), reemitindo a lista a cada check-in (QR/manual).
+  Stream<List<RosterItem>> watchRoster(String conexaoId) async* {
+    final passageiros = await _client
+        .from('passageiros')
+        .select('id, nome, usuarios(foto_url)')
+        .eq('conexao_id', conexaoId)
+        .order('nome');
+
+    final base = passageiros.map((p) {
+      final usuario = p['usuarios'];
+      return (
+        id: p['id'] as String,
+        nome: (p['nome'] ?? '') as String,
+        foto: (usuario is Map) ? usuario['foto_url'] as String? : null,
+      );
+    }).toList();
+
+    yield* _client
+        .from('presencas')
+        .stream(primaryKey: ['id'])
+        .eq('data', _today)
+        .map((rows) {
+      final byPassageiro = {
+        for (final row in rows)
+          row['passageiro_id'] as String: PresencaModel.fromMap(row),
+      };
+      return base
+          .map((b) => RosterItem(
+                passageiroId: b.id,
+                nome: b.nome,
+                fotoUrl: b.foto,
+                presenca: byPassageiro[b.id],
+              ))
+          .toList();
+    });
+  }
+
   /// Marca presença manual (motorista). Upsert por (passageiro_id, data).
   Future<PresencaModel> markAttendance({
     required String passageiroId,

@@ -16,29 +16,26 @@ class DashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final statsAsync = ref.watch(attendanceStatsProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Monitoramento')),
-      body: RefreshIndicator(
-        onRefresh: () => ref.refresh(attendanceStatsProvider.future),
-        child: statsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => ListView(
-            children: [
-              const SizedBox(height: 120),
-              const Center(child: Icon(Icons.error_outline, size: 48)),
-              const SizedBox(height: 16),
-              Center(
-                child: AppButton(
-                  label: 'Tentar novamente',
-                  icon: Icons.refresh,
-                  expand: false,
-                  onPressed: () => ref.invalidate(attendanceStatsProvider),
-                ),
+    return RefreshIndicator(
+      onRefresh: () => ref.refresh(attendanceStatsProvider.future),
+      child: statsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => ListView(
+          children: [
+            const SizedBox(height: 120),
+            const Center(child: Icon(Icons.error_outline, size: 48)),
+            const SizedBox(height: 16),
+            Center(
+              child: AppButton(
+                label: 'Tentar novamente',
+                icon: Icons.refresh,
+                expand: false,
+                onPressed: () => ref.invalidate(attendanceStatsProvider),
               ),
-            ],
-          ),
-          data: (stats) => _Content(stats: stats),
+            ),
+          ],
         ),
+        data: (stats) => _Content(stats: stats),
       ),
     );
   }

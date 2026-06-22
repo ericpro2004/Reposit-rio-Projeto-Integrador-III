@@ -15,4 +15,5 @@ abstract final class AppRoutes {
   static const manualAttendance = '/chamada'; // Tela 9 (motorista)
   static const alerts = '/alertas'; // Tela 10
   static const dashboard = '/monitoramento'; // Tela 11
+  static const vinculos = '/vinculos'; // Meus vínculos (menu)
 }
