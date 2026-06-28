@@ -40,6 +40,7 @@ class Presenca extends Equatable {
     required this.status,
     required this.origem,
     required this.horarioRegistro,
+    this.justificativa,
   });
 
   final String id;
@@ -47,10 +48,11 @@ class Presenca extends Equatable {
   final PresencaStatus status;
   final PresencaOrigem origem;
   final DateTime horarioRegistro;
+  final String? justificativa;
 
   @override
   List<Object?> get props =>
-      [id, passageiroId, status, origem, horarioRegistro];
+      [id, passageiroId, status, origem, horarioRegistro, justificativa];
 }
 
 /// Item da lista de chamada: passageiro + (opcional) presença de hoje.
@@ -69,6 +71,7 @@ class RosterItem extends Equatable {
 
   PresencaStatus? get status => presenca?.status;
   PresencaOrigem? get origem => presenca?.origem;
+  String? get justificativa => presenca?.justificativa;
 
   RosterItem copyWith({Presenca? presenca}) => RosterItem(
         passageiroId: passageiroId,

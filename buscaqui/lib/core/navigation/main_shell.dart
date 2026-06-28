@@ -16,10 +16,18 @@ class MainShell extends ConsumerWidget {
 
   final StatefulNavigationShell navigationShell;
 
-  List<String> _titles(bool isMotorista) => [
-        'Minhas Conexões',
-        isMotorista ? 'Chamada' : 'Entrar em conexão',
-        isMotorista ? 'Gerar QR Code' : 'Registrar presença',
+  List<String> _titles(UserRole? role) => [
+        'Início',
+        switch (role) {
+          UserRole.motorista => 'Chamada',
+          UserRole.responsavel => 'Meus alunos',
+          _ => 'Entrar em conexão',
+        },
+        switch (role) {
+          UserRole.motorista => 'Gerar QR Code',
+          UserRole.responsavel => 'Vincular aluno',
+          _ => 'Registrar presença',
+        },
         'Monitoramento',
         'Mensagens',
       ];
@@ -35,8 +43,7 @@ class MainShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final index = navigationShell.currentIndex;
-    final isMotorista =
-        ref.watch(currentAppUserProvider).valueOrNull?.role == UserRole.motorista;
+    final role = ref.watch(currentAppUserProvider).valueOrNull?.role;
 
     return Scaffold(
       appBar: AppBar(
@@ -48,7 +55,7 @@ class MainShell extends ConsumerWidget {
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: Text(_titles(isMotorista)[index]),
+        title: Text(_titles(role)[index]),
         actions: [
           // Avatar do usuário no canto direito (abre o mesmo menu).
           Builder(
@@ -65,7 +72,7 @@ class MainShell extends ConsumerWidget {
       body: navigationShell,
       bottomNavigationBar: _AppBottomNav(
         currentIndex: index,
-        isMotorista: isMotorista,
+        role: role,
         onTap: _goBranch,
       ),
     );
@@ -142,6 +149,14 @@ class _AppDrawer extends ConsumerWidget {
               ),
             ),
             ListTile(
+              leading: const Icon(Icons.manage_accounts),
+              title: const Text('Dados pessoais'),
+              onTap: () {
+                Navigator.of(context).pop(); // fecha o drawer
+                context.push(AppRoutes.profile);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.link),
               title: const Text('Meus vínculos'),
               onTap: () {
@@ -164,7 +179,9 @@ class _AppDrawer extends ConsumerWidget {
   }
 
   Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
-    Navigator.of(context).pop(); // fecha o drawer
+    // Captura o router ANTES de qualquer await/pop (o context do drawer
+    // é desmontado ao fechar o menu, o que antes impedia o logout).
+    final router = GoRouter.of(context);
     final sair = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -182,9 +199,9 @@ class _AppDrawer extends ConsumerWidget {
         ],
       ),
     );
-    if (sair != true || !context.mounted) return;
+    if (sair != true) return;
     await ref.read(authControllerProvider.notifier).signOut();
-    if (context.mounted) context.go(AppRoutes.login);
+    router.go(AppRoutes.login);
   }
 }
 
@@ -192,16 +209,28 @@ class _AppDrawer extends ConsumerWidget {
 class _AppBottomNav extends StatelessWidget {
   const _AppBottomNav({
     required this.currentIndex,
-    required this.isMotorista,
+    required this.role,
     required this.onTap,
   });
 
   final int currentIndex;
-  final bool isMotorista;
+  final UserRole? role;
   final ValueChanged<int> onTap;
 
   @override
   Widget build(BuildContext context) {
+    final (tab1Icon, tab1Label) = switch (role) {
+      UserRole.motorista => (Icons.checklist_rounded, 'Chamada'),
+      UserRole.responsavel => (Icons.family_restroom_rounded, 'Alunos'),
+      _ => (Icons.link_rounded, 'Conexão'),
+    };
+    final (centerIcon, centerLabel) = switch (role) {
+      UserRole.motorista => (Icons.qr_code_2_rounded, 'Gerar QR Code da van'),
+      UserRole.responsavel =>
+        (Icons.person_add_alt_1_rounded, 'Vincular-me a um aluno'),
+      _ => (Icons.qr_code_scanner_rounded, 'Registrar presença, ler QR Code'),
+    };
+
     return Material(
       color: Theme.of(context).bottomAppBarTheme.color ??
           Theme.of(context).colorScheme.surface,
@@ -222,8 +251,8 @@ class _AppBottomNav extends StatelessWidget {
               ),
               _NavItem(
                 index: 1,
-                icon: isMotorista ? Icons.checklist_rounded : Icons.link_rounded,
-                label: isMotorista ? 'Chamada' : 'Conexão',
+                icon: tab1Icon,
+                label: tab1Label,
                 currentIndex: currentIndex,
                 onTap: onTap,
               ),
@@ -231,12 +260,8 @@ class _AppBottomNav extends StatelessWidget {
                 index: 2,
                 onTap: onTap,
                 selected: currentIndex == 2,
-                icon: isMotorista
-                    ? Icons.qr_code_2_rounded
-                    : Icons.qr_code_scanner_rounded,
-                semanticLabel: isMotorista
-                    ? 'Gerar QR Code da van'
-                    : 'Registrar presença, ler QR Code',
+                icon: centerIcon,
+                semanticLabel: centerLabel,
               ),
               _NavItem(
                 index: 3,

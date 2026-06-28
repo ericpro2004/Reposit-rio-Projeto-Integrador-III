@@ -41,6 +41,46 @@ class _RosterViewState extends ConsumerState<RosterView> {
     );
   }
 
+  Future<void> _justificar(RosterItem item) async {
+    final controller = TextEditingController(text: item.justificativa ?? '');
+    final texto = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Justificativa — ${item.nome}'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            hintText: 'Ex.: Consulta médica; avisado pelos pais.',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Enviar ao responsável'),
+          ),
+        ],
+      ),
+    );
+    if (texto == null || texto.isEmpty) return;
+    final res = await ref
+        .read(attendanceRepositoryProvider)
+        .setJustificativa(passageiroId: item.passageiroId, justificativa: texto);
+    if (!mounted) return;
+    res.match(
+      (f) => showAppFeedback(context, f.message, type: FeedbackType.error),
+      (_) => showAppFeedback(context, 'Justificativa enviada ao responsável.',
+          type: FeedbackType.success),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final rosterAsync = ref.watch(rosterStreamProvider(widget.conexaoId));
@@ -99,6 +139,7 @@ class _RosterViewState extends ConsumerState<RosterView> {
                       _mark(visible[i].passageiroId, PresencaStatus.presente),
                   onAusente: () =>
                       _mark(visible[i].passageiroId, PresencaStatus.ausente),
+                  onJustificar: () => _justificar(visible[i]),
                 ),
               );
             },
@@ -114,11 +155,13 @@ class _RosterTile extends StatelessWidget {
     required this.item,
     required this.onPresente,
     required this.onAusente,
+    required this.onJustificar,
   });
 
   final RosterItem item;
   final VoidCallback onPresente;
   final VoidCallback onAusente;
+  final VoidCallback onJustificar;
 
   @override
   Widget build(BuildContext context) {
@@ -206,6 +249,32 @@ class _RosterTile extends StatelessWidget {
                 ),
               ],
             ),
+            // Justificativa (motorista): botão + texto, enviado ao responsável.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: onJustificar,
+                icon: const Icon(Icons.edit_note, size: 20),
+                label: Text(
+                  (item.justificativa?.isNotEmpty ?? false)
+                      ? 'Editar justificativa'
+                      : 'Adicionar justificativa',
+                ),
+              ),
+            ),
+            if (item.justificativa?.isNotEmpty ?? false)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Justificativa: ${item.justificativa}',
+                  style: const TextStyle(color: AppColors.warning),
+                ),
+              ),
           ],
         ),
       ),

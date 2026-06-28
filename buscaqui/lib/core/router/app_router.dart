@@ -14,6 +14,7 @@ import '../../features/connections/presentation/pages/connections_page.dart';
 import '../../features/connections/presentation/pages/qr_generator_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/links/presentation/pages/vinculos_page.dart';
+import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/tracking/presentation/pages/tracking_page.dart';
 import '../navigation/main_shell.dart';
 import '../navigation/role_tabs.dart';
@@ -147,6 +148,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.vinculos,
         builder: (_, __) => const VinculosPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.profile,
+        builder: (_, __) => const ProfilePage(),
       ),
     ],
     errorBuilder: (_, state) =>

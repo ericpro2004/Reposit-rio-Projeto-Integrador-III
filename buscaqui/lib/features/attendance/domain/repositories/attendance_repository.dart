@@ -16,6 +16,12 @@ abstract interface class AttendanceRepository {
     required PresencaStatus status,
   });
 
+  /// Motorista registra/edita a justificativa (enviada ao responsável).
+  Future<Either<Failure, Presenca>> setJustificativa({
+    required String passageiroId,
+    required String justificativa,
+  });
+
   /// Check-in do próprio passageiro via QR ou código (origem registrada).
   Future<Either<Failure, Presenca>> checkInByToken({
     required String token,

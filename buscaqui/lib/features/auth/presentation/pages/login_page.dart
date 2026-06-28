@@ -70,7 +70,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final isLoading = ref.watch(authControllerProvider).isLoading;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Entrar')),
+      appBar: AppBar(
+        title: const Text('Entrar'),
+        leading: IconButton(
+          tooltip: 'Voltar para o início',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go(AppRoutes.splash),
+        ),
+      ),
       body: SafeArea(
         child: Form(
           key: _formKey,

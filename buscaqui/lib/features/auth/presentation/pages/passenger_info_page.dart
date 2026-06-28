@@ -47,25 +47,14 @@ class _PassengerInfoPageState extends ConsumerState<PassengerInfoPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      final client = SupabaseConfig.client;
-      final userId = SupabaseConfig.currentUser?.id;
-
-      final resp = await client
-          .from('responsaveis')
-          .insert({
-            'usuario_id': userId,
-            'nome': _respNome.text.trim(),
-            'telefone': _respTel.text.trim(),
-            'email': _respEmail.text.trim(),
-          })
-          .select('id')
-          .single();
-
-      await client.from('passageiros').insert({
-        'usuario_id': userId,
-        'nome': _alunoNome.text.trim(),
-        'idade': int.tryParse(_alunoIdade.text.trim()),
-        'responsavel_id': resp['id'],
+      // RPC atômica e ciente do papel: cria responsável + aluno e garante o
+      // perfil, evitando falhas de FK/RLS logo após o cadastro.
+      await SupabaseConfig.client.rpc('create_vinculo', params: {
+        'p_aluno_nome': _alunoNome.text.trim(),
+        'p_aluno_idade': int.tryParse(_alunoIdade.text.trim()),
+        'p_resp_nome': _respNome.text.trim(),
+        'p_resp_telefone': _respTel.text.trim(),
+        'p_resp_email': _respEmail.text.trim(),
       });
 
       if (!mounted) return;

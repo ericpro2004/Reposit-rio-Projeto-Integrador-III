@@ -27,6 +27,16 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
           _remote.markAttendance(passageiroId: passageiroId, status: status));
 
   @override
+  Future<Either<Failure, Presenca>> setJustificativa({
+    required String passageiroId,
+    required String justificativa,
+  }) =>
+      _guard(() => _remote.setJustificativa(
+            passageiroId: passageiroId,
+            justificativa: justificativa,
+          ));
+
+  @override
   Future<Either<Failure, Presenca>> checkInByToken({
     required String token,
     required PresencaOrigem origem,

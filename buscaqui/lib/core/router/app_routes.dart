@@ -16,4 +16,5 @@ abstract final class AppRoutes {
   static const alerts = '/alertas'; // Tela 10
   static const dashboard = '/monitoramento'; // Tela 11
   static const vinculos = '/vinculos'; // Meus vínculos (menu)
+  static const profile = '/dados-pessoais'; // Dados pessoais e configurações
 }

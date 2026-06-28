@@ -74,7 +74,28 @@ class AuthRemoteDataSource {
   Future<void> sendPasswordReset(String email) =>
       _client.auth.resetPasswordForEmail(email);
 
+  /// Troca a senha do usuário logado.
+  Future<void> changePassword(String novaSenha) =>
+      _client.auth.updateUser(UserAttributes(password: novaSenha));
+
+  /// Exclui a própria conta (via RPC) e encerra a sessão.
+  Future<void> deleteAccount() async {
+    await _client.rpc('delete_my_account');
+    await _client.auth.signOut();
+  }
+
   Future<void> signOut() => _client.auth.signOut();
+
+  /// Atualiza dados pessoais do próprio usuário (nome/telefone).
+  Future<void> updateProfile({
+    required String nome,
+    required String telefone,
+  }) async {
+    final id = _client.auth.currentUser!.id;
+    await _client
+        .from('usuarios')
+        .update({'nome': nome, 'telefone': telefone}).eq('id', id);
+  }
 
   Future<AppUserModel> _fetchProfile(User user) async {
     final row = await _client

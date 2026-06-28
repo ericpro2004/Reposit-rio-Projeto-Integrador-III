@@ -71,6 +71,7 @@ create table if not exists public.passageiros (
   usuario_id     uuid references public.usuarios (id) on delete set null,
   nome           text not null,
   idade          int  check (idade >= 0 and idade <= 120),
+  codigo_vinculo text unique,   -- código que o aluno compartilha com o responsável
   responsavel_id uuid references public.responsaveis (id) on delete set null,
   conexao_id     uuid references public.conexoes (id) on delete set null,
   criado_em      timestamptz not null default now()
@@ -88,6 +89,7 @@ create table if not exists public.presencas (
   data              date not null default current_date,
   status            presenca_status not null,
   origem            presenca_origem not null,
+  justificativa     text,
   horario_registro  timestamptz not null default now(),
   -- Garante 1 registro por passageiro por dia (upsert na chamada).
   unique (passageiro_id, data)
@@ -156,7 +158,7 @@ create trigger on_auth_user_created
 --     preenchidos pelo cliente.
 create or replace function public.gen_connection_code()
 returns trigger
-language plpgsql set search_path = public
+language plpgsql set search_path = public, extensions
 as $$
 begin
   if new.codigo is null or new.codigo = '' then
@@ -173,6 +175,23 @@ drop trigger if exists before_conexao_insert on public.conexoes;
 create trigger before_conexao_insert
   before insert on public.conexoes
   for each row execute function public.gen_connection_code();
+
+-- (B2) Gera o código de vínculo do aluno (compartilhado com o responsável).
+create or replace function public.gen_passageiro_codigo()
+returns trigger
+language plpgsql set search_path = public, extensions
+as $$
+begin
+  if new.codigo_vinculo is null or new.codigo_vinculo = '' then
+    new.codigo_vinculo := upper(substr(encode(gen_random_bytes(5), 'hex'), 1, 6));
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists before_passageiro_insert on public.passageiros;
+create trigger before_passageiro_insert
+  before insert on public.passageiros
+  for each row execute function public.gen_passageiro_codigo();
 
 -- (C) Ao registrar uma presença com status 'ausente', cria um alerta para o
 --     responsável (consumido pela tela de Alertas e por push via Edge Function).
@@ -202,6 +221,34 @@ create trigger after_presenca_absence
   after insert or update on public.presencas
   for each row execute function public.notify_absence();
 
+-- (C2) Ao registrar/editar a justificativa, envia-a ao responsável (alertas).
+create or replace function public.notify_justificativa()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_nome text;
+begin
+  if new.justificativa is not null and trim(new.justificativa) <> ''
+     and (tg_op = 'INSERT'
+          or new.justificativa is distinct from old.justificativa) then
+    select nome into v_nome from public.passageiros where id = new.passageiro_id;
+    insert into public.alertas (passageiro_id, mensagem)
+    values (
+      new.passageiro_id,
+      coalesce(v_nome, 'Passageiro') ||
+      ': justificativa registrada — ' || new.justificativa
+    );
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists after_presenca_justificativa on public.presencas;
+create trigger after_presenca_justificativa
+  after insert or update on public.presencas
+  for each row execute function public.notify_justificativa();
+
 -- ============================================================================
 --  RPCs (SECURITY DEFINER) — operações que contornam o RLS de forma controlada
 -- ============================================================================
@@ -211,11 +258,13 @@ create trigger after_presenca_absence
 create or replace function public.join_connection(p_codigo text)
 returns public.conexoes
 language plpgsql
-security definer set search_path = public
+security definer set search_path = public, extensions
 as $$
 declare
   v_conexao public.conexoes;
   v_updated int;
+  v_role tipo_usuario;
+  v_nome text;
 begin
   select * into v_conexao
     from public.conexoes
@@ -237,18 +286,114 @@ begin
   get diagnostics v_updated = row_count;
 
   if v_updated = 0 then
-    raise exception 'Nenhum passageiro vinculado à sua conta. Cadastre o aluno antes.'
-      using errcode = 'P0001';
+    -- Conta passageiro sem registro de aluno: cria automaticamente e vincula.
+    select tipo_usuario, nome into v_role, v_nome
+      from public.usuarios where id = auth.uid();
+    if v_role = 'passageiro' then
+      insert into public.passageiros (usuario_id, nome, conexao_id)
+      values (auth.uid(), coalesce(nullif(trim(v_nome), ''), 'Aluno'), v_conexao.id);
+    else
+      raise exception 'Nenhum passageiro vinculado à sua conta. Cadastre o aluno antes.'
+        using errcode = 'P0001';
+    end if;
   end if;
 
   return v_conexao;
 end $$;
 
+-- (R1b) Cria o vínculo aluno↔responsável (Tela 4), atômico e ciente do papel.
+create or replace function public.create_vinculo(
+  p_aluno_nome text, p_aluno_idade int,
+  p_resp_nome text, p_resp_telefone text, p_resp_email text
+) returns uuid
+language plpgsql
+security definer set search_path = public, extensions
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_role tipo_usuario;
+  v_resp_id uuid;
+  v_pass_id uuid;
+begin
+  if v_uid is null then
+    raise exception 'Sessão inválida. Faça login novamente.';
+  end if;
+
+  -- Garante o perfil (caso o trigger não tenha criado).
+  if not exists (select 1 from public.usuarios where id = v_uid) then
+    insert into public.usuarios (id, nome, email, telefone, tipo_usuario)
+    select a.id,
+           coalesce(a.raw_user_meta_data->>'nome', a.email),
+           a.email,
+           a.raw_user_meta_data->>'telefone',
+           coalesce((a.raw_user_meta_data->>'tipo_usuario')::tipo_usuario, 'passageiro')
+    from auth.users a where a.id = v_uid;
+  end if;
+
+  select tipo_usuario into v_role from public.usuarios where id = v_uid;
+
+  -- Responsável (ligado à conta só se a conta for do tipo responsável).
+  insert into public.responsaveis (usuario_id, nome, telefone, email)
+  values (case when v_role = 'responsavel' then v_uid else null end,
+          nullif(trim(p_resp_nome), ''), nullif(trim(p_resp_telefone), ''),
+          nullif(trim(p_resp_email), ''))
+  returning id into v_resp_id;
+
+  -- Aluno (ligado à conta só se a conta for do tipo passageiro).
+  insert into public.passageiros (usuario_id, nome, idade, responsavel_id)
+  values (case when v_role = 'passageiro' then v_uid else null end,
+          nullif(trim(p_aluno_nome), ''), p_aluno_idade, v_resp_id)
+  returning id into v_pass_id;
+
+  return v_pass_id;
+end $$;
+
+revoke execute on function public.create_vinculo(text, int, text, text, text) from public, anon;
+grant execute on function public.create_vinculo(text, int, text, text, text) to authenticated;
+
+-- (R1c) Responsável vincula-se a um aluno pelo código de vínculo do aluno.
+create or replace function public.link_responsavel_by_codigo(p_codigo text)
+returns text
+language plpgsql
+security definer set search_path = public, extensions
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_role tipo_usuario;
+  v_pass public.passageiros;
+  v_resp_id uuid;
+  v_nome text;
+begin
+  select tipo_usuario, nome into v_role, v_nome from public.usuarios where id = v_uid;
+  if v_role is distinct from 'responsavel' then
+    raise exception 'Apenas contas do tipo responsável podem se vincular a um aluno.';
+  end if;
+
+  select * into v_pass from public.passageiros
+    where upper(codigo_vinculo) = upper(trim(p_codigo)) limit 1;
+  if v_pass.id is null then
+    raise exception 'Aluno não encontrado para este código.' using errcode = 'P0002';
+  end if;
+
+  select id into v_resp_id from public.responsaveis where usuario_id = v_uid limit 1;
+  if v_resp_id is null then
+    insert into public.responsaveis (usuario_id, nome)
+    values (v_uid, coalesce(nullif(trim(v_nome), ''), 'Responsável'))
+    returning id into v_resp_id;
+  end if;
+
+  update public.passageiros set responsavel_id = v_resp_id where id = v_pass.id;
+  return v_pass.nome;
+end $$;
+
+revoke execute on function public.link_responsavel_by_codigo(text) from public, anon;
+grant execute on function public.link_responsavel_by_codigo(text) to authenticated;
+
 -- (R2) Motorista regenera o token/código da conexão (invalida o anterior).
 create or replace function public.refresh_connection_token(p_id uuid)
 returns public.conexoes
 language plpgsql
-security definer set search_path = public
+security definer set search_path = public, extensions
 as $$
 declare
   v_conexao public.conexoes;
@@ -309,8 +454,10 @@ end $$;
 -- ============================================================================
 --  REALTIME — habilita streaming de localização (e alertas)
 -- ============================================================================
+alter table public.presencas replica identity full;
 alter publication supabase_realtime add table public.localizacoes;
 alter publication supabase_realtime add table public.alertas;
+alter publication supabase_realtime add table public.presencas;
 
 -- ============================================================================
 --  ROW LEVEL SECURITY (RLS) — isolamento por perfil
@@ -662,8 +809,8 @@ begin
     select jsonb_build_object('role','passageiro','alunos', coalesce(jsonb_agg(aluno),'[]'::jsonb))
       into v_result
     from (
-      select jsonb_build_object('nome', p.nome, 'van', c.nome_conexao,
-               'motorista', mu.nome, 'responsavel', r.nome,
+      select jsonb_build_object('nome', p.nome, 'codigo', p.codigo_vinculo,
+               'van', c.nome_conexao, 'motorista', mu.nome, 'responsavel', r.nome,
                'responsavel_telefone', r.telefone) as aluno
       from public.passageiros p
       left join public.conexoes c on c.id = p.conexao_id
@@ -678,3 +825,87 @@ end $$;
 
 revoke execute on function public.my_links() from public, anon;
 grant execute on function public.my_links() to authenticated;
+
+-- ============================================================================
+--  MONITORAMENTO por papel (motorista: alunos por van; responsável: seus
+--  alunos; passageiro: ele mesmo) — estatísticas a partir de `presencas`.
+-- ============================================================================
+create or replace function public.attendance_overview()
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_role tipo_usuario;
+  v_result jsonb;
+begin
+  select tipo_usuario into v_role from public.usuarios where id = v_uid;
+
+  if v_role = 'motorista' then
+    select jsonb_build_object('role','motorista','vans', coalesce(jsonb_agg(v),'[]'::jsonb))
+      into v_result
+    from (
+      select jsonb_build_object('conexao', c.nome_conexao, 'alunos', coalesce((
+        select jsonb_agg(jsonb_build_object(
+          'nome', p.nome,
+          'presentes', (select count(*) from public.presencas pr where pr.passageiro_id = p.id and pr.status = 'presente'),
+          'faltas',    (select count(*) from public.presencas pr where pr.passageiro_id = p.id and pr.status = 'ausente'),
+          'justificados', (select count(*) from public.presencas pr where pr.passageiro_id = p.id and pr.status = 'justificado')
+        ) order by p.nome)
+        from public.passageiros p where p.conexao_id = c.id), '[]'::jsonb)) as v
+      from public.conexoes c where c.motorista_id = v_uid order by c.nome_conexao
+    ) t;
+  elsif v_role = 'responsavel' then
+    select jsonb_build_object('role','responsavel','alunos', coalesce(jsonb_agg(a),'[]'::jsonb))
+      into v_result
+    from (
+      select jsonb_build_object('nome', p.nome, 'van', c.nome_conexao,
+        'presentes', (select count(*) from public.presencas pr where pr.passageiro_id = p.id and pr.status = 'presente'),
+        'faltas',    (select count(*) from public.presencas pr where pr.passageiro_id = p.id and pr.status = 'ausente'),
+        'justificados', (select count(*) from public.presencas pr where pr.passageiro_id = p.id and pr.status = 'justificado')) as a
+      from public.passageiros p
+      left join public.conexoes c on c.id = p.conexao_id
+      where p.responsavel_id in (select id from public.responsaveis where usuario_id = v_uid)
+      order by p.nome
+    ) t;
+  else
+    select jsonb_build_object('role','passageiro','alunos', coalesce(jsonb_agg(a),'[]'::jsonb))
+      into v_result
+    from (
+      select jsonb_build_object('nome', p.nome, 'van', c.nome_conexao,
+        'presentes', (select count(*) from public.presencas pr where pr.passageiro_id = p.id and pr.status = 'presente'),
+        'faltas',    (select count(*) from public.presencas pr where pr.passageiro_id = p.id and pr.status = 'ausente'),
+        'justificados', (select count(*) from public.presencas pr where pr.passageiro_id = p.id and pr.status = 'justificado')) as a
+      from public.passageiros p
+      left join public.conexoes c on c.id = p.conexao_id
+      where p.usuario_id = v_uid order by p.nome
+    ) t;
+  end if;
+
+  return coalesce(v_result, jsonb_build_object('role', coalesce(v_role::text,'desconhecido')));
+end $$;
+
+revoke execute on function public.attendance_overview() from public, anon;
+grant execute on function public.attendance_overview() to authenticated;
+
+-- ============================================================================
+--  EXCLUSÃO DA PRÓPRIA CONTA (SECURITY DEFINER) — apaga auth.users do usuário;
+--  as FKs em cascata removem perfil e dados associados.
+-- ============================================================================
+create or replace function public.delete_my_account()
+returns void
+language plpgsql
+security definer set search_path = public, auth
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'Sessão inválida.';
+  end if;
+  delete from auth.users where id = v_uid;
+end $$;
+
+revoke execute on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;

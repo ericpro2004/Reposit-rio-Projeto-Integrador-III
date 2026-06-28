@@ -4,12 +4,13 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/supabase_config.dart';
 import 'core/notifications/push_provider.dart';
 import 'core/router/app_router.dart';
+import 'core/settings/settings_provider.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 
@@ -30,7 +31,15 @@ Future<void> main() async {
     [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
   );
 
-  runApp(const ProviderScope(child: BusCaquiApp()));
+  // 4. Configurações persistidas (tema, notificações).
+  final prefs = await SharedPreferences.getInstance();
+
+  runApp(
+    ProviderScope(
+      overrides: [sharedPrefsProvider.overrideWithValue(prefs)],
+      child: const BusCaquiApp(),
+    ),
+  );
 }
 
 class BusCaquiApp extends ConsumerStatefulWidget {
@@ -55,6 +64,7 @@ class _BusCaquiAppState extends ConsumerState<BusCaquiApp> {
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
+    final themeMode = ref.watch(settingsProvider).themeMode;
 
     // Ao entrar (login/cadastro), registra o token FCM do dispositivo.
     ref.listen(authStateChangesProvider, (_, next) {
@@ -68,10 +78,10 @@ class _BusCaquiAppState extends ConsumerState<BusCaquiApp> {
       debugShowCheckedModeBanner: false,
       routerConfig: router,
 
-      // Acessibilidade: tema claro/escuro seguindo a preferência do sistema.
+      // Tema claro/escuro conforme a preferência salva pelo usuário.
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
 
       // Localização em Português (Brasil).
       locale: const Locale('pt', 'BR'),

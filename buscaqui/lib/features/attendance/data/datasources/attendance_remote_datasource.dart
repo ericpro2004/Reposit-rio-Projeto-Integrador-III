@@ -105,6 +105,30 @@ class AttendanceRemoteDataSource {
     return PresencaModel.fromMap(row);
   }
 
+  /// Registra/edita a justificativa (motorista). Marca como 'justificado'.
+  /// O trigger notify_justificativa envia a justificativa ao responsável.
+  Future<PresencaModel> setJustificativa({
+    required String passageiroId,
+    required String justificativa,
+  }) async {
+    final row = await _client
+        .from('presencas')
+        .upsert(
+          {
+            'passageiro_id': passageiroId,
+            'data': _today,
+            'status': PresencaStatus.justificado.name,
+            'origem': PresencaOrigem.manual.name,
+            'justificativa': justificativa,
+            'horario_registro': DateTime.now().toIso8601String(),
+          },
+          onConflict: 'passageiro_id,data',
+        )
+        .select()
+        .single();
+    return PresencaModel.fromMap(row);
+  }
+
   /// Check-in do passageiro via RPC (QR ou código).
   Future<PresencaModel> checkInByToken({
     required String token,

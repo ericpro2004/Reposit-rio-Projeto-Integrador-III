@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../providers/links_provider.dart';
 
 /// Tela "Meus vínculos" (aberta pelo menu ☰). Mostra as relações conforme o
@@ -13,9 +16,17 @@ class VinculosPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final linksAsync = ref.watch(myLinksProvider);
+    final role = linksAsync.valueOrNull?['role'] as String?;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Meus vínculos')),
+      floatingActionButton: role == 'responsavel'
+          ? FloatingActionButton.extended(
+              onPressed: () => _linkAluno(context, ref),
+              icon: const Icon(Icons.person_add_alt_1),
+              label: const Text('Vincular aluno'),
+            )
+          : null,
       body: linksAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
@@ -46,6 +57,58 @@ class VinculosPage extends ConsumerWidget {
 
   static List<Map<String, dynamic>> _list(dynamic v) =>
       (v as List? ?? []).map((e) => (e as Map).cast<String, dynamic>()).toList();
+
+  /// Diálogo para o responsável digitar o código do aluno e se vincular.
+  Future<void> _linkAluno(BuildContext context, WidgetRef ref) async {
+    final controller = TextEditingController();
+    final codigo = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Vincular-me a um aluno'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Digite o código de aluno que ele compartilhou com você.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                hintText: 'Ex.: A1B2C3',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Vincular'),
+          ),
+        ],
+      ),
+    );
+    if (codigo == null || codigo.isEmpty || !context.mounted) return;
+    try {
+      final nome = await SupabaseConfig.client
+          .rpc('link_responsavel_by_codigo', params: {'p_codigo': codigo});
+      if (!context.mounted) return;
+      ref.invalidate(myLinksProvider);
+      showAppFeedback(context, 'Você agora é responsável de $nome!',
+          type: FeedbackType.success);
+    } catch (e) {
+      if (!context.mounted) return;
+      final msg = e.toString().contains('não encontrado')
+          ? 'Aluno não encontrado para este código.'
+          : 'Não foi possível vincular. Verifique o código.';
+      showAppFeedback(context, msg, type: FeedbackType.error);
+    }
+  }
 }
 
 class _MotoristaView extends StatelessWidget {
@@ -142,6 +205,8 @@ class _PassageiroView extends StatelessWidget {
             titulo: a['nome']?.toString() ?? 'Aluno',
             subtitulo: null,
             filhos: [
+              if (a['codigo'] != null)
+                _CodeShare(codigo: a['codigo'].toString()),
               _PersonTile(
                 nome: a['van']?.toString() ?? 'Sem van',
                 detalhe: 'Van',
@@ -243,6 +308,60 @@ class _PersonTile extends StatelessWidget {
         ),
         title: Text(nome),
         subtitle: Text(detalhe),
+      ),
+    );
+  }
+}
+
+/// Código de aluno (passageiro) para compartilhar com o responsável.
+class _CodeShare extends StatelessWidget {
+  const _CodeShare({required this.codigo});
+  final String codigo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.qr_code, color: AppColors.primaryAccessibleText),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Seu código de aluno',
+                    style: Theme.of(context).textTheme.labelLarge),
+                SelectableText(
+                  codigo,
+                  style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2),
+                ),
+                const Text('Compartilhe com seu responsável.'),
+              ],
+            ),
+          ),
+          Semantics(
+            button: true,
+            label: 'Copiar código',
+            child: IconButton(
+              icon: const Icon(Icons.copy),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: codigo));
+                showAppFeedback(context, 'Código copiado.',
+                    type: FeedbackType.info);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -7,6 +7,7 @@ class PresencaModel extends Presenca {
     required super.status,
     required super.origem,
     required super.horarioRegistro,
+    super.justificativa,
   });
 
   factory PresencaModel.fromMap(Map<String, dynamic> map) {
@@ -18,6 +19,7 @@ class PresencaModel extends Presenca {
       horarioRegistro:
           DateTime.tryParse(map['horario_registro']?.toString() ?? '') ??
               DateTime.now(),
+      justificativa: map['justificativa'] as String?,
     );
   }
 }

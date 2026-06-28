@@ -7,8 +7,11 @@ import '../../features/auth/domain/entities/app_user.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/connections/presentation/pages/join_connection_page.dart';
 import '../../features/connections/presentation/pages/qr_generator_tab.dart';
+import '../../features/links/presentation/pages/alunos_tab.dart';
+import '../../features/links/presentation/pages/vincular_aluno_tab.dart';
 
-/// Aba 1 (rodapé): motorista → Chamada; demais → Entrar em conexão.
+/// Aba 1 (rodapé) por papel: motorista → Chamada; responsável → Alunos;
+/// passageiro → Entrar em conexão.
 class ConnectionOrCallTab extends ConsumerWidget {
   const ConnectionOrCallTab({super.key});
 
@@ -18,13 +21,16 @@ class ConnectionOrCallTab extends ConsumerWidget {
     if (role == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    return role == UserRole.motorista
-        ? const ChamadaTab()
-        : const JoinConnectionPage();
+    return switch (role) {
+      UserRole.motorista => const ChamadaTab(),
+      UserRole.responsavel => const AlunosTab(),
+      UserRole.passageiro => const JoinConnectionPage(),
+    };
   }
 }
 
-/// Aba central (rodapé): motorista → Gerar QR; demais → Ler QR.
+/// Aba central (rodapé) por papel: motorista → Gerar QR; responsável →
+/// Vincular aluno; passageiro → Ler QR.
 class ScanOrGenerateTab extends ConsumerWidget {
   const ScanOrGenerateTab({super.key});
 
@@ -34,8 +40,10 @@ class ScanOrGenerateTab extends ConsumerWidget {
     if (role == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    return role == UserRole.motorista
-        ? const QrGeneratorTab()
-        : const QrScannerPage();
+    return switch (role) {
+      UserRole.motorista => const QrGeneratorTab(),
+      UserRole.responsavel => const VincularAlunoTab(),
+      UserRole.passageiro => const QrScannerPage(),
+    };
   }
 }

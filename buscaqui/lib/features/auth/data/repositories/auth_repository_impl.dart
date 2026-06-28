@@ -52,7 +52,22 @@ class AuthRepositoryImpl implements AuthRepository {
       _guardUnit(() => _remote.sendPasswordReset(email));
 
   @override
+  Future<Either<Failure, Unit>> changePassword(String novaSenha) =>
+      _guardUnit(() => _remote.changePassword(novaSenha));
+
+  @override
+  Future<Either<Failure, Unit>> deleteAccount() =>
+      _guardUnit(_remote.deleteAccount);
+
+  @override
   Future<Either<Failure, Unit>> signOut() => _guardUnit(_remote.signOut);
+
+  @override
+  Future<Either<Failure, Unit>> updateProfile({
+    required String nome,
+    required String telefone,
+  }) =>
+      _guardUnit(() => _remote.updateProfile(nome: nome, telefone: telefone));
 
   // ---- helpers de tratamento de erro ----
   Future<Either<Failure, T>> _guard<T>(Future<T> Function() action) async {

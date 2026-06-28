@@ -28,5 +28,17 @@ abstract interface class AuthRepository {
 
   Future<Either<Failure, Unit>> sendPasswordReset(String email);
 
+  /// Troca a senha do usuário logado.
+  Future<Either<Failure, Unit>> changePassword(String novaSenha);
+
+  /// Exclui a própria conta de forma permanente.
+  Future<Either<Failure, Unit>> deleteAccount();
+
   Future<Either<Failure, Unit>> signOut();
+
+  /// Atualiza dados pessoais (nome/telefone) do usuário logado.
+  Future<Either<Failure, Unit>> updateProfile({
+    required String nome,
+    required String telefone,
+  });
 }

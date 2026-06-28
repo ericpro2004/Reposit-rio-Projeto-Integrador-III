@@ -54,7 +54,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     if (ok) {
       showAppFeedback(context, 'Conta criada com sucesso!',
           type: FeedbackType.success);
-      context.go(AppRoutes.passengerInfo);
+      // Motorista não vincula aluno: vai direto para o app. Demais perfis
+      // passam pela tela de vínculo (aluno ↔ responsável).
+      context.go(_role == UserRole.motorista
+          ? AppRoutes.connections
+          : AppRoutes.passengerInfo);
     } else {
       final err = ref.read(authControllerProvider).error;
       showAppFeedback(
