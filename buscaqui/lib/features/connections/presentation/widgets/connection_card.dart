@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/app_routes.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../../domain/entities/conexao.dart';
 
 /// Card de uma conexão (Tela 5). Mostra nome, código, nº de passageiros e o
@@ -125,7 +127,7 @@ class _CodeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
@@ -141,6 +143,23 @@ class _CodeChip extends StatelessWidget {
             style: const TextStyle(
               fontWeight: FontWeight.w600,
               letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Semantics(
+            button: true,
+            label: 'Copiar código $codigo',
+            child: IconButton(
+              tooltip: 'Copiar código',
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.copy, size: 18),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: codigo));
+                showAppFeedback(context, 'Código copiado.',
+                    type: FeedbackType.info);
+              },
             ),
           ),
         ],

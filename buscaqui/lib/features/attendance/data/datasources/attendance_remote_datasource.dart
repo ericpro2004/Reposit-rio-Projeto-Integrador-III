@@ -45,9 +45,10 @@ class AttendanceRemoteDataSource {
     }).toList();
   }
 
-  /// Roster em TEMPO REAL: busca os passageiros uma vez e faz stream das
-  /// presenças de hoje (Realtime), reemitindo a lista a cada check-in (QR/manual).
-  Stream<List<RosterItem>> watchRoster(String conexaoId) async* {
+  /// Roster em TEMPO REAL para uma DATA específica: busca os passageiros uma
+  /// vez e faz stream das presenças daquele dia (Realtime), reemitindo a cada
+  /// check-in (QR/manual). [data] no formato yyyy-MM-dd.
+  Stream<List<RosterItem>> watchRoster(String conexaoId, String data) async* {
     final passageiros = await _client
         .from('passageiros')
         .select('id, nome, usuarios(foto_url)')
@@ -66,7 +67,7 @@ class AttendanceRemoteDataSource {
     yield* _client
         .from('presencas')
         .stream(primaryKey: ['id'])
-        .eq('data', _today)
+        .eq('data', data)
         .map((rows) {
       final byPassageiro = {
         for (final row in rows)
@@ -84,16 +85,18 @@ class AttendanceRemoteDataSource {
   }
 
   /// Marca presença manual (motorista). Upsert por (passageiro_id, data).
+  /// [data] no formato yyyy-MM-dd (padrão: hoje).
   Future<PresencaModel> markAttendance({
     required String passageiroId,
     required PresencaStatus status,
+    String? data,
   }) async {
     final row = await _client
         .from('presencas')
         .upsert(
           {
             'passageiro_id': passageiroId,
-            'data': _today,
+            'data': data ?? _today,
             'status': status.name,
             'origem': PresencaOrigem.manual.name,
             'horario_registro': DateTime.now().toIso8601String(),
@@ -110,13 +113,14 @@ class AttendanceRemoteDataSource {
   Future<PresencaModel> setJustificativa({
     required String passageiroId,
     required String justificativa,
+    String? data,
   }) async {
     final row = await _client
         .from('presencas')
         .upsert(
           {
             'passageiro_id': passageiroId,
-            'data': _today,
+            'data': data ?? _today,
             'status': PresencaStatus.justificado.name,
             'origem': PresencaOrigem.manual.name,
             'justificativa': justificativa,

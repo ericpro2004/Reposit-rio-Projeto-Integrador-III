@@ -57,13 +57,11 @@ class MainShell extends ConsumerWidget {
         ),
         title: Text(_titles(role)[index]),
         actions: [
-          // Avatar do usuário no canto direito (abre o mesmo menu).
-          Builder(
-            builder: (ctx) => Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _UserAvatarButton(
-                onTap: () => Scaffold.of(ctx).openDrawer(),
-              ),
+          // Avatar do usuário: atalho direto para Dados pessoais (configurações).
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: _UserAvatarButton(
+              onTap: () => context.push(AppRoutes.profile),
             ),
           ),
         ],
@@ -91,7 +89,7 @@ class _UserAvatarButton extends ConsumerWidget {
         (user?.nome.trim().isNotEmpty ?? false) ? user!.nome.trim()[0].toUpperCase() : '?';
     return Semantics(
       button: true,
-      label: 'Conta de ${user?.nome ?? 'usuário'}. Abrir menu.',
+      label: 'Conta de ${user?.nome ?? 'usuário'}. Abrir dados pessoais.',
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),

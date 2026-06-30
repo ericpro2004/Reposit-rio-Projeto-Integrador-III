@@ -15,12 +15,16 @@ final attendanceRepositoryProvider = Provider<AttendanceRepository>(
   (ref) => AttendanceRepositoryImpl(ref.watch(_dataSourceProvider)),
 );
 
-/// Roster em tempo real de uma conexão (chamada do motorista). Atualiza
-/// automaticamente quando um aluno faz check-in por QR ou na marcação manual.
+/// Argumento do roster: conexão + data (yyyy-MM-dd).
+typedef RosterArgs = ({String conexaoId, String data});
+
+/// Roster em tempo real de uma conexão numa data. Atualiza automaticamente
+/// quando um aluno faz check-in por QR ou na marcação manual.
 final rosterStreamProvider =
-    StreamProvider.autoDispose.family<List<RosterItem>, String>(
-  (ref, conexaoId) =>
-      ref.watch(attendanceRepositoryProvider).watchRoster(conexaoId),
+    StreamProvider.autoDispose.family<List<RosterItem>, RosterArgs>(
+  (ref, args) => ref
+      .watch(attendanceRepositoryProvider)
+      .watchRoster(args.conexaoId, args.data),
 );
 
 /// Lista de chamada por conexão (Tela 9). Mantém o estado e aplica atualização

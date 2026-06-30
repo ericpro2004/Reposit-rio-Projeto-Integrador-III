@@ -57,7 +57,7 @@ class ConnectionsPage extends ConsumerWidget {
   }
 }
 
-class _Content extends StatelessWidget {
+class _Content extends StatefulWidget {
   const _Content({
     required this.conexoes,
     required this.isMotorista,
@@ -69,23 +69,85 @@ class _Content extends StatelessWidget {
   final VoidCallback onCreate;
 
   @override
+  State<_Content> createState() => _ContentState();
+}
+
+class _ContentState extends State<_Content> {
+  final _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final conexoes = widget.conexoes;
+    final q = _query.trim().toLowerCase();
+    final filtradas = q.isEmpty
+        ? conexoes
+        : conexoes
+            .where((c) =>
+                c.nomeConexao.toLowerCase().contains(q) ||
+                c.codigo.toLowerCase().contains(q))
+            .toList();
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (isMotorista) ...[
+        if (widget.isMotorista) ...[
           AppButton(
             label: 'Nova conexão',
             icon: Icons.add,
-            onPressed: onCreate,
+            onPressed: widget.onCreate,
           ),
           const SizedBox(height: 16),
         ],
         if (conexoes.isEmpty)
           const _EmptyState()
-        else
-          for (final c in conexoes)
-            ConnectionCard(conexao: c, isMotorista: isMotorista),
+        else ...[
+          // Barra de pesquisa (filtra por nome ou código da van).
+          TextField(
+            controller: _search,
+            onChanged: (v) => setState(() => _query = v),
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'Buscar van por nome ou código',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _query.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Limpar busca',
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        _search.clear();
+                        setState(() => _query = '');
+                      },
+                    ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (filtradas.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+              child: Column(
+                children: [
+                  const Icon(Icons.search_off, size: 56),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Nenhuma van encontrada para "$_query".',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ],
+              ),
+            )
+          else
+            for (final c in filtradas)
+              ConnectionCard(conexao: c, isMotorista: widget.isMotorista),
+        ],
       ],
     );
   }

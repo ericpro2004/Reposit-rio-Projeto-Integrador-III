@@ -15,25 +15,28 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       _guard(() => _remote.getRoster(conexaoId));
 
   @override
-  Stream<List<RosterItem>> watchRoster(String conexaoId) =>
-      _remote.watchRoster(conexaoId);
+  Stream<List<RosterItem>> watchRoster(String conexaoId, String data) =>
+      _remote.watchRoster(conexaoId, data);
 
   @override
   Future<Either<Failure, Presenca>> markAttendance({
     required String passageiroId,
     required PresencaStatus status,
+    String? data,
   }) =>
-      _guard(() =>
-          _remote.markAttendance(passageiroId: passageiroId, status: status));
+      _guard(() => _remote.markAttendance(
+          passageiroId: passageiroId, status: status, data: data));
 
   @override
   Future<Either<Failure, Presenca>> setJustificativa({
     required String passageiroId,
     required String justificativa,
+    String? data,
   }) =>
       _guard(() => _remote.setJustificativa(
             passageiroId: passageiroId,
             justificativa: justificativa,
+            data: data,
           ));
 
   @override
